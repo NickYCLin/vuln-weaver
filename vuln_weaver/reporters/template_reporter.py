@@ -20,7 +20,7 @@ TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
 DEFAULT_REPORT_TEMPLATE = TEMPLATE_DIR / "default_tw.docx"
 DEFAULT_DIFF_TEMPLATE = TEMPLATE_DIR / "default_diff_tw.docx"
 
-SCANNER_LABELS = {"nessus": "Tenable Nessus", "nmap": "Nmap", "zap": "OWASP ZAP"}
+SCANNER_LABELS = {"nessus": "Tenable Nessus", "nmap": "Nmap", "zap": "OWASP ZAP", "burp": "Burp Suite"}
 STATUS_ZH = {DiffStatus.FIXED: "已修復", DiffStatus.OPEN: "未修復", DiffStatus.NEW: "新發現"}
 
 

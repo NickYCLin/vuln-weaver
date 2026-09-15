@@ -31,11 +31,11 @@
 ## 🌟 核心特色 (Key Features)
 
 - **⚡ 掃描結果解析**
-  - CLI 支援 **Tenable Nessus (`.nessus`)**、**Nmap XML (`-oX` 輸出的 `.xml`)** 與 **OWASP ZAP 傳統報告（`.xml` / `.json`）**，轉成統一資料模型。
-  - `.xml` 會依根節點自動分辨是 Nmap 還是 ZAP，不需另外指定掃描器。
-  - Web Lite 線上版支援同樣三種格式，解析與比對規則和 CLI 一致，全程在瀏覽器內完成。
+  - CLI 支援 **Tenable Nessus (`.nessus`)**、**Nmap XML (`-oX` 輸出的 `.xml`)**、**OWASP ZAP 傳統報告（`.xml` / `.json`）** 與 **Burp Suite「Report issues」匯出的 `.xml`**，轉成統一資料模型。
+  - `.xml` 會依根節點自動分辨是 Nmap、ZAP 還是 Burp，不需另外指定掃描器。
+  - Web Lite 線上版支援同樣四種格式，解析與比對規則和 CLI 一致，全程在瀏覽器內完成。
   - Nmap 的開放通訊埠會列入主機清冊；只有 Telnet、過期 TLS 協定或明確回報 `VULNERABLE` 的 NSE 腳本會產生弱點項目。開放 FTP 埠本身不代表已檢出明文或匿名登入。
-  - ZAP 報告以站台（主機 + 通訊埠）當作受影響對象，同一告警跨多個站台會合併成一筆並列出各站台；風險等級對應為 High / Medium / Low / Info，ZAP 沒有 Critical 等級。告警的 URL 清單保留在原始輸出欄位中。
+  - ZAP 與 Burp 報告以站台（主機 + 通訊埠）當作受影響對象，同一告警跨多個站台會合併成一筆並列出各站台；風險等級對應為 High / Medium / Low / Info，這兩套工具都沒有 Critical 等級。告警的 URL 或路徑清單（Burp 含確信度）保留在原始輸出欄位中。
 - **🇹🇼 繁體中文在地化知識庫 (TW Localized Knowledge Base)**
   - 內建常見弱點（SSL/TLS 弱演算法、安全標頭缺漏、預設帳密、SQLi/XSS、Cookie 旗標、CSRF 等）的繁體中文說明與符合公部門語境的修補指引，Nessus 與 ZAP 的告警命名都能對上。
 - **🔄 殺手級複測比對 (Remediation Diff Engine)**
@@ -58,6 +58,7 @@ flowchart LR
     A["Nessus (.nessus)"] --> D["Parsers 模組"]
     B["Nmap (.xml)"] --> D
     C["OWASP ZAP (.xml / .json)"] --> D
+    C1["Burp Suite (.xml)"] --> D
     C2["未來支援其他掃描器"] -.-> D
     
     D --> E["統一資料模型 (ScanReport)"]
@@ -87,7 +88,8 @@ vuln-weaver/
 │   │   ├── base.py           # 抽象解析器基類 (BaseParser)
 │   │   ├── nessus.py         # Tenable Nessus XML 解析器
 │   │   ├── nmap.py           # Nmap XML 解析器
-│   │   └── zap.py            # OWASP ZAP XML / JSON 報告解析器
+│   │   ├── zap.py            # OWASP ZAP XML / JSON 報告解析器
+│   │   └── burp.py           # Burp Suite issues XML 解析器
 │   ├── knowledge/            # 繁體中文弱點知識庫
 │   │   ├── __init__.py
 │   │   └── kb_zh_tw.py       # 弱點標題、風險說明與修補建議對照表
@@ -106,7 +108,7 @@ vuln-weaver/
 ├── scripts/
 │   └── build_default_template.py  # 重建內建範本
 ├── tests/                    # 單元測試目錄
-│   ├── fixtures/             # Nessus / Nmap / ZAP 測試用樣本檔
+│   ├── fixtures/             # Nessus / Nmap / ZAP / Burp 測試用樣本檔
 │   └── test_*.py
 ├── docs/                     # GitHub Pages Web Lite 線上版
 │   ├── index.html            # 頁面與匯出邏輯
@@ -154,6 +156,9 @@ python -m vuln_weaver.cli parse sample.xml -f json -o report.json
 # 解析 OWASP ZAP 匯出的傳統 XML 或 JSON 報告
 python -m vuln_weaver.cli parse zap_report.xml -f docx -o web_report.docx
 python -m vuln_weaver.cli parse zap_report.json -f docx -o web_report.docx
+
+# 解析 Burp Suite「Report issues」匯出的 XML
+python -m vuln_weaver.cli parse burp_issues.xml -f docx -o web_report.docx
 ```
 
 #### 初掃 vs 複掃比對產出：
@@ -207,11 +212,11 @@ python -m vuln_weaver.cli diff baseline.nessus rescan.nessus -o diff.docx -t my_
 - [x] **Milestone 3**: 以 `python-docx` 匯出第一版資安健診標準 Word 報告（自訂範本尚未支援）。
 - [x] **Milestone 4**: 建立繁體中文弱點描述知識庫與修復字典（持續補充中）。
 - [x] **Milestone 5**: 初掃 vs 複測比對演算法與複驗對照表輸出。
-- [x] **Milestone 6**: 支援 Nmap XML 與 OWASP ZAP 報告；Burp Suite 尚未支援。
+- [x] **Milestone 6**: 支援 Nmap XML 與 OWASP ZAP 報告。
 - [x] **Milestone 7**: GitHub Pages Web Lite 線上版。
 - [x] **Milestone 8**: Web Lite 加入 Nmap / ZAP 解析，比對規則與 CLI 對齊。
 - [x] **Milestone 9**: `docxtpl` 自訂 Word 範本、封面單位資訊與審核簽章欄位。
-- [ ] **Milestone 10**: 支援 Burp Suite 匯出報告。
+- [x] **Milestone 10**: 支援 Burp Suite 匯出報告（CLI 與 Web Lite）。
 
 ---
 

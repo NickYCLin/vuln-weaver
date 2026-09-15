@@ -10,6 +10,7 @@ from vuln_weaver import __version__
 from vuln_weaver.parsers.nessus import NessusParser
 from vuln_weaver.parsers.nmap import NmapParser
 from vuln_weaver.parsers.zap import ZapParser
+from vuln_weaver.parsers.burp import BurpParser
 from vuln_weaver.models import ReportMeta
 from vuln_weaver.reporters.docx_reporter import DocxReporter
 from vuln_weaver.reporters.template_reporter import TemplateReporter
@@ -29,6 +30,7 @@ console = Console()
 XML_ROOT_PARSERS = {
     "nmaprun": NmapParser,
     "OWASPZAPReport": ZapParser,
+    "issues": BurpParser,
     "NessusClientData_v2": NessusParser,
 }
 
@@ -50,7 +52,7 @@ def get_parser_for_file(file_path: Path):
     if suffix == ".json":
         return ZapParser()
     if suffix == ".xml":
-        # Nmap 與 ZAP 都輸出 .xml，依根節點分辨；根節點無法辨識時交給 Nmap 解析器回報錯誤
+        # Nmap、ZAP、Burp 都輸出 .xml，依根節點分辨；根節點無法辨識時交給 Nmap 解析器回報錯誤
         parser_cls = XML_ROOT_PARSERS.get(_xml_root_tag(file_path), NmapParser)
         return parser_cls()
     return None
@@ -112,13 +114,13 @@ def main():
 @report_meta_options
 def parse(scan_file, output_format, output_file, language, template_file,
           org, vendor, project_code, tester, reviewer, approver, extra_vars):
-    """解析弱點掃描檔案 (Nessus / Nmap / OWASP ZAP) 並生成標準報告。"""
+    """解析弱點掃描檔案 (Nessus / Nmap / OWASP ZAP / Burp Suite) 並生成標準報告。"""
     file_path = Path(scan_file)
     console.print(Panel.fit(f"[bold cyan]VulnWeaver 解析任務[/bold cyan]\n檔案: {file_path.name}\n輸出目標: {output_file} ({output_format.upper()})", border_style="cyan"))
 
     parser = get_parser_for_file(file_path)
     if not parser:
-        raise click.ClickException(f"目前副檔名 {file_path.suffix} 尚不支援，請使用 .nessus、.xml (Nmap / ZAP) 或 .json (ZAP) 檔案。")
+        raise click.ClickException(f"目前副檔名 {file_path.suffix} 尚不支援，請使用 .nessus、.xml (Nmap / ZAP / Burp) 或 .json (ZAP) 檔案。")
 
     with console.status(f"[bold green]正在使用 {parser.scanner_name.upper()} 解析器處理並對齊繁體中文知識庫...[/bold green]"):
         try:

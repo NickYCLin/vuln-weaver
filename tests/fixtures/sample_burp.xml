@@ -1,0 +1,75 @@
+<?xml version="1.0"?>
+<!DOCTYPE issues [
+<!ELEMENT issues (issue*)>
+]>
+<issues burpVersion="2024.5.3" exportTime="Wed Sep 03 10:15:42 CST 2026">
+  <issue>
+    <serialNumber>5316302013512591360</serialNumber>
+    <type>1048832</type>
+    <name>Cross-site scripting (reflected)</name>
+    <host ip="203.0.113.10">https://portal.example.gov.tw</host>
+    <path><![CDATA[/search]]></path>
+    <location><![CDATA[/search [q parameter]]]></location>
+    <severity>High</severity>
+    <confidence>Certain</confidence>
+    <issueBackground><![CDATA[<p>Reflected cross-site scripting vulnerabilities arise when data is copied from a request and echoed into the application's immediate response in an unsafe way.</p>]]></issueBackground>
+    <remediationBackground><![CDATA[<p>In most situations where user-controllable data is copied into application responses, cross-site scripting attacks can be prevented using two layers of defenses: input validation and output encoding.</p>]]></remediationBackground>
+    <references><![CDATA[<ul><li><a href="https://portswigger.net/web-security/cross-site-scripting/reflected">Reflected cross-site scripting</a></li></ul>]]></references>
+    <vulnerabilityClassifications><![CDATA[<ul><li><a href="https://cwe.mitre.org/data/definitions/79.html">CWE-79: Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')</a></li><li><a href="https://cwe.mitre.org/data/definitions/80.html">CWE-80: Improper Neutralization of Script-Related HTML Tags in a Web Page (Basic XSS)</a></li></ul>]]></vulnerabilityClassifications>
+    <issueDetail><![CDATA[The value of the <b>q</b> request parameter is copied into the HTML document as plain text between tags.]]></issueDetail>
+  </issue>
+  <issue>
+    <serialNumber>5316302013512591361</serialNumber>
+    <type>1048832</type>
+    <name>Cross-site scripting (reflected)</name>
+    <host ip="203.0.113.10">https://portal.example.gov.tw</host>
+    <path><![CDATA[/news]]></path>
+    <location><![CDATA[/news [id parameter]]]></location>
+    <severity>High</severity>
+    <confidence>Firm</confidence>
+    <issueBackground><![CDATA[<p>Reflected cross-site scripting vulnerabilities arise when data is copied from a request and echoed into the application's immediate response in an unsafe way.</p>]]></issueBackground>
+    <remediationBackground><![CDATA[<p>Use input validation and output encoding.</p>]]></remediationBackground>
+    <vulnerabilityClassifications><![CDATA[<ul><li><a href="https://cwe.mitre.org/data/definitions/79.html">CWE-79: Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')</a></li></ul>]]></vulnerabilityClassifications>
+  </issue>
+  <issue>
+    <serialNumber>5316302013512591362</serialNumber>
+    <type>5243392</type>
+    <name>Strict transport security not enforced</name>
+    <host ip="203.0.113.10">https://portal.example.gov.tw</host>
+    <path><![CDATA[/]]></path>
+    <location><![CDATA[/]]></location>
+    <severity>Low</severity>
+    <confidence>Certain</confidence>
+    <issueBackground><![CDATA[<p>The application fails to prevent users from connecting to it over unencrypted connections.</p>]]></issueBackground>
+    <remediationBackground><![CDATA[<p>The application should instruct web browsers to only access the application using HTTPS. To do this, enable HTTP Strict Transport Security (HSTS) by adding a response header with the name 'Strict-Transport-Security' and the value 'max-age=expireTime'.</p>]]></remediationBackground>
+    <vulnerabilityClassifications><![CDATA[<ul><li><a href="https://cwe.mitre.org/data/definitions/523.html">CWE-523: Unprotected Transport of Credentials</a></li></ul>]]></vulnerabilityClassifications>
+  </issue>
+  <issue>
+    <serialNumber>5316302013512591363</serialNumber>
+    <type>8389632</type>
+    <name>Cacheable HTTPS response</name>
+    <host ip="203.0.113.20">http://intranet.example.gov.tw:8080</host>
+    <path><![CDATA[/admin]]></path>
+    <location><![CDATA[/admin]]></location>
+    <severity>Information</severity>
+    <confidence>Certain</confidence>
+    <issueBackground><![CDATA[<p>Unless directed otherwise, browsers may store a local cached copy of content received from web servers.</p>]]></issueBackground>
+    <remediationBackground><![CDATA[<p>Applications should return caching directives instructing browsers not to store local copies of any sensitive data.</p>]]></remediationBackground>
+    <vulnerabilityClassifications><![CDATA[<ul><li><a href="https://cwe.mitre.org/data/definitions/524.html">CWE-524: Information Exposure Through Caching</a></li></ul>]]></vulnerabilityClassifications>
+  </issue>
+  <issue>
+    <serialNumber>5316302013512591364</serialNumber>
+    <type>2097920</type>
+    <name>Cleartext submission of password</name>
+    <host ip="203.0.113.20">http://intranet.example.gov.tw:8080</host>
+    <path><![CDATA[/login]]></path>
+    <location><![CDATA[/login]]></location>
+    <severity>Medium</severity>
+    <confidence>Certain</confidence>
+    <issueBackground><![CDATA[<p>Some applications transmit passwords over unencrypted connections, making them vulnerable to interception.</p>]]></issueBackground>
+    <remediationBackground><![CDATA[<p>Applications should use transport-level encryption (SSL or TLS) to protect all sensitive communications passing between the client and the server.</p>]]></remediationBackground>
+    <issueDetail><![CDATA[The page contains a form with the following action URL, which is submitted over clear-text HTTP:<ul><li>http://intranet.example.gov.tw:8080/login</li></ul>]]></issueDetail>
+    <remediationDetail><![CDATA[Move the login form to HTTPS.]]></remediationDetail>
+    <vulnerabilityClassifications><![CDATA[<ul><li><a href="https://cwe.mitre.org/data/definitions/319.html">CWE-319: Cleartext Transmission of Sensitive Information</a></li></ul>]]></vulnerabilityClassifications>
+  </issue>
+</issues>

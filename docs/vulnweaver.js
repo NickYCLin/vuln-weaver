@@ -17,7 +17,7 @@
     { pattern: /Sweet32|Birthday attacks on 64-bit block ciphers|\b(?:3DES|DES)\b/i, titleZh: 'SSL/TLS 支援 64 位元區塊加密演算法 (Sweet32 弱點)', solutionZh: '移除 3DES/DES 加密套件，改用 AES-GCM 或 ChaCha20-Poly1305。' },
     { pattern: /RC4/i, titleZh: 'SSL/TLS 支援已被破解之 RC4 串流加密演算法', solutionZh: '徹底自密碼組設定中移除所有包含 RC4 的加密演算法。' },
     { pattern: /Self-Signed Certificate|Untrusted Root|Certificate Expired/i, titleZh: 'SSL/TLS 憑證使用自簽憑證或未獲信任之發證單位', solutionZh: '向合格之憑證機構 (CA) 申請正式數位憑證並定期排程巡檢效期。' },
-    { pattern: /HTTP Strict Transport Security|HSTS/i, titleZh: '未啟用 HTTP 嚴格傳輸安全標頭 (Missing HSTS Header)', solutionZh: '增加回應標頭：Strict-Transport-Security: max-age=31536000; includeSubDomains。' },
+    { pattern: /Strict[- ]Transport[- ]Security|HSTS/i, titleZh: '未啟用 HTTP 嚴格傳輸安全標頭 (Missing HSTS Header)', solutionZh: '增加回應標頭：Strict-Transport-Security: max-age=31536000; includeSubDomains。' },
     { pattern: /X-Content-Type-Options|MIME-sniffing/i, titleZh: '缺少 X-Content-Type-Options 安全標頭', solutionZh: '增加全域 HTTP 標頭：X-Content-Type-Options: nosniff。' },
     { pattern: /X-Frame-Options|Clickjacking/i, titleZh: '缺少 X-Frame-Options 安全標頭 (點擊劫持風險)', solutionZh: '設定 HTTP 回應標頭 X-Frame-Options: SAMEORIGIN 或 DENY。' },
     { pattern: /Content[- ]Security[- ]Policy|CSP Header (?:Missing|Not Set)/i, titleZh: '缺少 Content-Security-Policy (CSP) 內容安全政策標頭', solutionZh: '規劃並佈署 Content-Security-Policy 回應標頭，限制 script-src、object-src 等資源載入來源為合法白名單。' },
@@ -37,9 +37,10 @@
     { pattern: /Cookie (?:No|Without) HttpOnly/i, titleZh: 'Cookie 未設定 HttpOnly 旗標', solutionZh: '對 Session 等不需由前端腳本存取的 Cookie 加上 HttpOnly 屬性。' },
     { pattern: /Cookie (?:without|No) SameSite/i, titleZh: 'Cookie 未設定 SameSite 屬性', solutionZh: '對所有 Cookie 設定 SameSite=Lax 或 Strict；需跨站使用的才設為 None 並同時加上 Secure。' },
     { pattern: /Anti-CSRF Tokens|Cross[- ]Site Request Forgery|\bCSRF\b/i, titleZh: '表單缺少防跨站請求偽造 (CSRF) 權杖', solutionZh: '為所有會變更狀態的表單與 API 加入不可預測的 CSRF Token 並於伺服器端驗證。' },
+    { pattern: /Cleartext submission of password|Password submitted (?:over|using) (?:cleartext|HTTP)/i, titleZh: '登入表單以未加密的 HTTP 明文傳送密碼', solutionZh: '將登入頁與表單送出的目標網址全面改為 HTTPS，並在伺服器端把 HTTP 導向 HTTPS，搭配 HSTS 標頭。' },
     { pattern: /Application Error Disclosure|Error Message Disclosure/i, titleZh: '應用程式錯誤訊息洩漏內部資訊', solutionZh: '正式環境關閉除錯模式，統一以自訂錯誤頁面回應，詳細錯誤只寫入伺服器端日誌。' },
     { pattern: /Vulnerable JS Library|Vulnerable JavaScript Library/i, titleZh: '網站使用含已知弱點之前端 JavaScript 函式庫', solutionZh: '盤點前端相依函式庫並升級至官方仍維護且已修補的版本。' },
-    { pattern: /Re-examine Cache-control|Cache-control Directives/i, titleZh: '敏感頁面未妥善設定 Cache-Control 快取控制標頭', solutionZh: '對含敏感資料的回應設定 Cache-Control: no-cache, no-store, must-revalidate。' },
+    { pattern: /Re-examine Cache-control|Cache-control Directives|Cacheable HTTPS response/i, titleZh: '敏感頁面未妥善設定 Cache-Control 快取控制標頭', solutionZh: '對含敏感資料的回應設定 Cache-Control: no-cache, no-store, must-revalidate。' },
     { pattern: /Log4Shell|CVE-2021-44228/i, titleZh: 'Apache Log4j 遠端程式碼執行重大漏洞 (Log4Shell)', solutionZh: '升級 Apache Log4j 至官方已修補的版本，依官方公告採取對應的暫時緩解措施。' },
     { pattern: /Default Credentials|Default Password|admin\/admin/i, titleZh: '設備或應用系統使用預設管理者帳號密碼', solutionZh: '立即變更預設管理者帳密，採用足夠複雜度的強密碼並啟用多因子驗證。' },
   ];
@@ -323,6 +324,58 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Burp Suite「Report issues」XML（根節點 issues）
+  // 同一種 issue type 合併成一筆，受影響對象是站台（主機 + 通訊埠），路徑進 raw 輸出。
+  // ---------------------------------------------------------------------------
+  function mapBurpSeverity(raw) {
+    return { high: 'High', medium: 'Medium', low: 'Low', information: 'Info', info: 'Info' }[String(raw || '').trim().toLowerCase()] || 'Info';
+  }
+
+  function parseBurpXML(content, fileLabel) {
+    const xmlDoc = parseXml(content, 'issues', 'Burp Suite XML 報告');
+    const hosts = new Map();
+    const vulnMap = new Map();
+
+    xmlDoc.querySelectorAll('issues > issue').forEach((issue) => {
+      const type = childText(issue, 'type');
+      const name = childText(issue, 'name');
+      if (!type || !name) return;
+
+      const hostElem = issue.querySelector(':scope > host');
+      const siteUrl = hostElem ? (hostElem.textContent || '').trim() : '';
+      const hostIp = hostElem ? (hostElem.getAttribute('ip') || '').trim() : '';
+      let parsed = null;
+      try { parsed = siteUrl ? new URL(siteUrl) : null; } catch (e) { parsed = null; }
+      const hostName = (parsed && parsed.hostname) || hostIp || 'Unknown';
+      const port = (parsed && parsed.port) ? parseInt(parsed.port, 10) : (parsed && parsed.protocol === 'https:' ? 443 : 80);
+      const targetStr = `${hostName}:${port}/tcp`;
+
+      if (!hosts.has(hostName)) hosts.set(hostName, { ip: hostName, fqdn: hostName, os: hostIp ? `IP: ${hostIp}` : '網站應用程式', openPorts: [] });
+      const host = hosts.get(hostName);
+      if (!host.openPorts.includes(port)) host.openPorts.push(port);
+
+      const background = stripHtml(childText(issue, 'issueBackground'));
+      const detail = stripHtml(childText(issue, 'issueDetail'));
+      const remBackground = stripHtml(childText(issue, 'remediationBackground'));
+      const remDetail = stripHtml(childText(issue, 'remediationDetail'));
+      const join = (a, b, label) => (a && b ? `${a}\n\n${label}：\n${b}` : (a || b));
+
+      addFinding(vulnMap, {
+        id: type,
+        title: name,
+        severity: mapBurpSeverity(childText(issue, 'severity')),
+        cves: [],
+        description: join(background, detail, '檢出細節'),
+        solution: join(remBackground, remDetail, '針對本次檢出的處置'),
+      }, targetStr);
+    });
+
+    if (!hosts.size) throw new Error('Burp Suite 報告中沒有任何 issue，無法建立主機清冊');
+    hosts.forEach((h) => h.openPorts.sort((a, b) => a - b));
+    return finalize('burp', `Burp Suite 網站弱點掃描 - ${fileLabel || 'report'}`, Array.from(hosts.values()), vulnMap);
+  }
+
+  // ---------------------------------------------------------------------------
   // 依副檔名與 XML 根節點自動分辨格式（對齊 cli.get_parser_for_file）
   // ---------------------------------------------------------------------------
   function xmlRootName(content) {
@@ -344,10 +397,11 @@
     if (ext === 'xml') {
       const root = xmlRootName(content);
       if (root === 'OWASPZAPReport') return parseZapXML(content, stem);
+      if (root === 'issues') return parseBurpXML(content, stem);
       if (root === 'NessusClientData_v2') return parseNessusXML(content);
       return parseNmapXML(content, stem);
     }
-    throw new Error(`目前副檔名 .${ext || '?'} 尚不支援，請使用 .nessus、.xml (Nmap / ZAP) 或 .json (ZAP) 檔案。`);
+    throw new Error(`目前副檔名 .${ext || '?'} 尚不支援，請使用 .nessus、.xml (Nmap / ZAP / Burp) 或 .json (ZAP) 檔案。`);
   }
 
   // ---------------------------------------------------------------------------
@@ -400,7 +454,7 @@
 
   global.VulnWeaver = {
     TW_KB, enrichZh,
-    parseNessusXML, parseNmapXML, parseZapXML, parseZapJSON, parseScanFile,
+    parseNessusXML, parseNmapXML, parseZapXML, parseZapJSON, parseBurpXML, parseScanFile,
     compareReports,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
