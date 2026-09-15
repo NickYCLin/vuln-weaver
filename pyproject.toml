@@ -35,3 +35,6 @@ vuln-weaver = "vuln_weaver.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["vuln_weaver*"]
+
+[tool.setuptools.package-data]
+vuln_weaver = ["templates/*.docx"]

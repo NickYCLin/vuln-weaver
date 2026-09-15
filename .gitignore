@@ -72,6 +72,7 @@ reports/
 *.docx
 *.pdf
 !templates/*.docx
+!vuln_weaver/templates/*.docx
 !examples/samples/*
 
 # Logs

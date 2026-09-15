@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict
 from datetime import datetime
 from pydantic import BaseModel, Field
 
@@ -79,6 +79,26 @@ class ScanReport(BaseModel):
         for v in self.vulnerabilities:
             stats[v.severity.value] += 1
         return stats
+
+
+class ReportMeta(BaseModel):
+    """報告封面與簽章欄位；欄位留空時報告會保留空白給人工填寫。"""
+
+    org: Optional[str] = Field(default=None, description="受測單位")
+    vendor: Optional[str] = Field(default=None, description="執行單位／廠商")
+    project_code: Optional[str] = Field(default=None, description="專案或案號")
+    tester: Optional[str] = Field(default=None, description="執行人員")
+    reviewer: Optional[str] = Field(default=None, description="審核人員")
+    approver: Optional[str] = Field(default=None, description="核定主管")
+    extra: Dict[str, str] = Field(default_factory=dict, description="自訂範本額外變數")
+
+    @property
+    def signers(self) -> List[Dict[str, str]]:
+        return [
+            {"role": "執行人員", "name": self.tester or ""},
+            {"role": "審核人員", "name": self.reviewer or ""},
+            {"role": "核定主管", "name": self.approver or ""},
+        ]
 
 
 class DiffStatus(str, Enum):

@@ -44,7 +44,8 @@
     - ❌ **Open (未修復)**：初掃存在且複掃仍未排除。
     - ⚠️ **New (新發現)**：初掃未檢出、複掃新出現的風險。
 - **📝 Word (.docx) 報告**
-  - 目前由 `python-docx` 產生標準報告；客製化範本與審核簽章功能尚未實作。
+  - 預設由 `python-docx` 產生標準報告，封面可帶入受測單位、執行單位與案號，結尾附執行／審核／核定三欄簽章表。
+  - 加上 `--template` 即改用 `docxtpl` 套用你自己的 Word 範本，內建兩個預設範本可直接複製修改。
 - **📊 視覺化統計圖表**
   - 自動統計「極高、高、中、低、資訊」弱點分級，並將比例圖嵌入報告。
 
@@ -93,10 +94,17 @@ vuln-weaver/
 │   ├── comparator/           # 複掃比對引擎
 │   │   ├── __init__.py
 │   │   └── diff.py           # 初掃與複掃差異比對演算法
-│   └── reporters/            # 報表生成引擎
-│       ├── __init__.py
-│       ├── base.py           # 抽象報表基類
-│       └── docx_reporter.py  # python-docx Word 報表產出模組
+│   ├── reporters/            # 報表生成引擎
+│   │   ├── __init__.py
+│   │   ├── base.py           # 抽象報表基類
+│   │   ├── charts.py         # 弱點等級分佈圖
+│   │   ├── docx_reporter.py  # python-docx 標準報表
+│   │   └── template_reporter.py  # docxtpl 自訂範本報表
+│   └── templates/            # 內建 docxtpl 範本
+│       ├── default_tw.docx       # 單次掃描報告範本
+│       └── default_diff_tw.docx  # 複測比對報告範本
+├── scripts/
+│   └── build_default_template.py  # 重建內建範本
 ├── tests/                    # 單元測試目錄
 │   ├── fixtures/             # Nessus / Nmap / ZAP 測試用樣本檔
 │   └── test_*.py
@@ -156,6 +164,40 @@ python -m vuln_weaver.cli diff baseline.nessus rescan.nessus -o diff_report.docx
 
 比對會按「弱點 ID × 主機／服務」區分狀態；同一弱點在不同主機或通訊埠可同時出現已修復、未修復或新增。初掃和複掃須來自同一掃描器、涵蓋相同主機；否則程式會拒絕產出「已修復」結論。請另外確認兩次掃描使用相同的通訊埠、服務與腳本設定，目前程式尚無法自動核對掃描設定。
 
+#### 封面資訊與審核簽章：
+```bash
+# 封面帶入單位與案號，結尾簽章表先填好姓名，簽章與日期留白給人工填寫
+python -m vuln_weaver.cli parse sample.nessus -o report.docx \
+  --org "某某市政府" --vendor "資安顧問公司" --project-code "114-INFOSEC-001" \
+  --tester "王小明" --reviewer "李大華" --approver "陳主管"
+```
+`parse` 與 `diff` 都接受這組參數。
+
+### 3. 自訂 Word 範本 (Custom Template)
+
+加上 `-t/--template` 就改用 [docxtpl](https://docxtpl.readthedocs.io/)（Jinja2 語法）套用你的 `.docx` 範本：
+
+```bash
+python -m vuln_weaver.cli parse sample.nessus -o report.docx -t my_template.docx --var client_contact="張承辦"
+python -m vuln_weaver.cli diff baseline.nessus rescan.nessus -o diff.docx -t my_diff_template.docx
+```
+
+建議直接複製 `vuln_weaver/templates/default_tw.docx`（單次報告）或 `default_diff_tw.docx`（複測比對）來改版面。範本內可用的變數：
+
+| 變數 | 說明 |
+|---|---|
+| `scan_name`、`scanner_label`、`scan_date`、`scan_date_iso`、`generated_at` | 專案標的、掃描工具、檢測日期、產出日期 |
+| `host_count`、`vuln_count`、`stats.Critical` … `stats.Info`、`stats.total` | 主機數、弱點數與各等級統計 |
+| `chart` | 弱點等級分佈圓餅圖（`{{ chart }}` 單獨一段） |
+| `hosts[]` | `index`、`ip`、`hostname`、`os`、`open_ports`、`open_port_list`、`vuln_count` |
+| `vulns[]` | `index`、`id`、`title`、`title_zh`、`display_title`、`severity`、`severity_zh`、`cvss`、`cves`、`cve_list`、`cwes`、`affected_hosts`、`affected_host_list`、`description`、`description_en`、`solution`、`solution_en`、`references`、`raw_output` |
+| `meta` | `org`、`vendor`、`project_code`、`tester`、`reviewer`、`approver`、`signers[]`（`role`、`name`），以及每個 `--var KEY=VALUE` 的 `meta.KEY` |
+| `report` | 原始 `ScanReport` 物件，需要更細的欄位時使用 |
+
+複測比對範本另有 `baseline_scan_name`、`rescan_name`、`comparison_date`、`fixed_count`、`open_count`、`new_count`、`total_count`，以及 `items[]`／`fixed_items[]`／`open_items[]`／`new_items[]`（`index`、`vuln_id`、`title`、`severity_zh`、`status`、`status_zh`、`affected_hosts`、`solution`）。
+
+表格列迴圈用 `{%tr for h in hosts %}`、`{%tr endfor %}`，段落迴圈用 `{%p for v in vulns %}`、`{%p endfor %}`；這些標籤要各自佔一整列或一整段，細節見 docxtpl 文件。所有變數值都會做 XML 跳脫，不會破壞文件。
+
 ---
 
 ## 🛣️ 開發路線圖 (Roadmap)
@@ -168,7 +210,7 @@ python -m vuln_weaver.cli diff baseline.nessus rescan.nessus -o diff_report.docx
 - [x] **Milestone 6**: 支援 Nmap XML 與 OWASP ZAP 報告；Burp Suite 尚未支援。
 - [x] **Milestone 7**: GitHub Pages Web Lite 線上版。
 - [x] **Milestone 8**: Web Lite 加入 Nmap / ZAP 解析，比對規則與 CLI 對齊。
-- [ ] **Milestone 9**: 支援 `docxtpl` 自訂 Word 範本與審核簽章欄位。
+- [x] **Milestone 9**: `docxtpl` 自訂 Word 範本、封面單位資訊與審核簽章欄位。
 - [ ] **Milestone 10**: 支援 Burp Suite 匯出報告。
 
 ---

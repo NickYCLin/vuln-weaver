@@ -1,5 +1,4 @@
 import os
-import tempfile
 from pathlib import Path
 from typing import Union, Dict, Any, Optional
 from datetime import datetime
@@ -11,12 +10,9 @@ from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
 from docx.oxml import OxmlElement, parse_xml
 from docx.oxml.ns import nsdecls, qn
 
-import matplotlib
-matplotlib.use("Agg")  # Headless backend
-import matplotlib.pyplot as plt
-
 from vuln_weaver.reporters.base import BaseReporter
-from vuln_weaver.models import ScanReport, DiffReport, Severity, DiffStatus
+from vuln_weaver.reporters.charts import generate_severity_chart
+from vuln_weaver.models import ScanReport, DiffReport, Severity, DiffStatus, ReportMeta
 
 
 class DocxReporter(BaseReporter):
@@ -32,16 +28,23 @@ class DocxReporter(BaseReporter):
         self.COLOR_LOW = RGBColor(0x02, 0x88, 0xD1)       # Blue
         self.COLOR_INFO = RGBColor(0x75, 0x75, 0x75)      # Gray
 
-    def generate(self, report: ScanReport, output_path: Union[str, Path], **kwargs) -> Path:
+    def generate(
+        self,
+        report: ScanReport,
+        output_path: Union[str, Path],
+        meta: Optional[ReportMeta] = None,
+        **kwargs,
+    ) -> Path:
         """Generate a complete vulnerability assessment report."""
         out_file = Path(output_path)
         out_file.parent.mkdir(parents=True, exist_ok=True)
+        meta = meta or ReportMeta()
 
         doc = docx.Document()
         self._set_page_margins(doc)
 
         # 1. Cover Page
-        self._build_cover_page(doc, report)
+        self._build_cover_page(doc, report, meta)
         doc.add_page_break()
 
         # 2. Section 1: Executive Summary
@@ -53,19 +56,29 @@ class DocxReporter(BaseReporter):
         # 4. Section 3: Detailed Vulnerability Findings
         self._build_detailed_findings(doc, report)
 
+        # 5. Section 4: Review & Signatures
+        self._build_signature_block(doc, "肆、 報告審核與簽章", meta)
+
         doc.save(str(out_file))
         return out_file
 
-    def generate_diff(self, diff_report: DiffReport, output_path: Union[str, Path], **kwargs) -> Path:
+    def generate_diff(
+        self,
+        diff_report: DiffReport,
+        output_path: Union[str, Path],
+        meta: Optional[ReportMeta] = None,
+        **kwargs,
+    ) -> Path:
         """Generate a re-scan diff audit report."""
         out_file = Path(output_path)
         out_file.parent.mkdir(parents=True, exist_ok=True)
+        meta = meta or ReportMeta()
 
         doc = docx.Document()
         self._set_page_margins(doc)
 
         # 1. Diff Cover Page
-        self._build_diff_cover(doc, diff_report)
+        self._build_diff_cover(doc, diff_report, meta)
         doc.add_page_break()
 
         # 2. Diff Summary Table & Chart
@@ -73,6 +86,9 @@ class DocxReporter(BaseReporter):
 
         # 3. Detailed Diff Items
         self._build_diff_items(doc, diff_report)
+
+        # 4. Review & Signatures
+        self._build_signature_block(doc, "參、 複測結果審核與簽章", meta)
 
         doc.save(str(out_file))
         return out_file
@@ -86,7 +102,7 @@ class DocxReporter(BaseReporter):
             section.left_margin = Inches(1.0)
             section.right_margin = Inches(1.0)
 
-    def _build_cover_page(self, doc: docx.Document, report: ScanReport):
+    def _build_cover_page(self, doc: docx.Document, report: ScanReport, meta: ReportMeta):
         p_space = doc.add_paragraph()
         p_space.paragraph_format.space_before = Pt(80)
 
@@ -107,14 +123,29 @@ class DocxReporter(BaseReporter):
         run_sub.font.color.rgb = self.COLOR_SECONDARY
 
         # Metadata table
-        table = doc.add_table(rows=4, cols=2)
-        table.alignment = WD_TABLE_ALIGNMENT.CENTER
-        meta_items = [
+        meta_items = self._cover_meta_rows(meta) + [
             ("受測主機總數：", f"{len(report.hosts)} 台主機 (IP)"),
             ("掃描引擎：", f"{report.scanner_name.capitalize()} 掃描工具"),
             ("檢測產出日期：", report.scan_date.strftime("%Y 年 %m 月 %d 日")),
-            ("產製單位：", "VulnWeaver 自動化合規檢核系統"),
+            ("產製工具：", "VulnWeaver 自動化合規檢核系統"),
         ]
+        self._add_meta_table(doc, meta_items)
+
+    @staticmethod
+    def _cover_meta_rows(meta: ReportMeta):
+        rows = []
+        if meta.project_code:
+            rows.append(("專案／案號：", meta.project_code))
+        if meta.org:
+            rows.append(("受測單位：", meta.org))
+        if meta.vendor:
+            rows.append(("執行單位：", meta.vendor))
+        return rows
+
+    @staticmethod
+    def _add_meta_table(doc: docx.Document, meta_items):
+        table = doc.add_table(rows=len(meta_items), cols=2)
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
         for idx, (label, val) in enumerate(meta_items):
             row = table.rows[idx]
             c1, c2 = row.cells[0], row.cells[1]
@@ -123,6 +154,34 @@ class DocxReporter(BaseReporter):
             c1.paragraphs[0].runs[0].font.bold = True
             c1.paragraphs[0].runs[0].font.size = Pt(11)
             c2.paragraphs[0].runs[0].font.size = Pt(11)
+
+    def _build_signature_block(self, doc: docx.Document, heading: str, meta: ReportMeta):
+        """審核簽章表：欄位留白供人工簽名與填日期，姓名有提供時先帶入。"""
+        self._add_heading(doc, heading, level=1)
+        p = doc.add_paragraph()
+        p.add_run("本報告經下列人員執行、審核與核定後生效；簽章欄請以親簽或電子簽章方式填具。")
+
+        signers = meta.signers
+        table = doc.add_table(rows=4, cols=len(signers))
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        table.style = "Table Grid"
+        for col, signer in enumerate(signers):
+            head = table.rows[0].cells[col]
+            head.text = signer["role"]
+            self._set_cell_bg(head, "1F497D")
+            head.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            head.paragraphs[0].runs[0].font.bold = True
+            head.paragraphs[0].runs[0].font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+
+            name_cell = table.rows[1].cells[col]
+            name_cell.text = f"姓名：{signer['name']}" if signer["name"] else "姓名："
+            sign_cell = table.rows[2].cells[col]
+            sign_cell.text = "簽章："
+            sign_cell.paragraphs[0].paragraph_format.space_after = Pt(48)
+            date_cell = table.rows[3].cells[col]
+            date_cell.text = "日期：　　年　　月　　日"
+
+        doc.add_paragraph()
 
     def _build_executive_summary(self, doc: docx.Document, report: ScanReport):
         self._add_heading(doc, "壹、 檢測作業與風險統計概況", level=1)
@@ -168,7 +227,7 @@ class DocxReporter(BaseReporter):
         doc.add_paragraph()
 
         # Generate and insert Pie Chart
-        chart_img = self._generate_severity_chart(stats)
+        chart_img = generate_severity_chart(stats)
         if chart_img:
             p_img = doc.add_paragraph()
             p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -279,7 +338,7 @@ class DocxReporter(BaseReporter):
 
     # --- Diff Report Builders ---
 
-    def _build_diff_cover(self, doc: docx.Document, diff_report: DiffReport):
+    def _build_diff_cover(self, doc: docx.Document, diff_report: DiffReport, meta: ReportMeta):
         p_space = doc.add_paragraph()
         p_space.paragraph_format.space_before = Pt(80)
 
@@ -297,18 +356,12 @@ class DocxReporter(BaseReporter):
         run_sub.font.size = Pt(14)
         run_sub.font.color.rgb = self.COLOR_SECONDARY
 
-        table = doc.add_table(rows=3, cols=2)
-        table.alignment = WD_TABLE_ALIGNMENT.CENTER
-        items = [
+        items = self._cover_meta_rows(meta) + [
             ("比對驗證日期：", diff_report.comparison_date.strftime("%Y 年 %m 月 %d 日")),
             ("總比對項目數：", f"{len(diff_report.items)} 個風險項目"),
             ("驗證引擎：", "VulnWeaver 智慧差異比對器 (Diff Engine)"),
         ]
-        for idx, (label, val) in enumerate(items):
-            r = table.rows[idx]
-            r.cells[0].text = label
-            r.cells[1].text = val
-            r.cells[0].paragraphs[0].runs[0].font.bold = True
+        self._add_meta_table(doc, items)
 
     def _build_diff_summary(self, doc: docx.Document, diff_report: DiffReport):
         self._add_heading(doc, "壹、 複測改善成效彙整", level=1)
@@ -394,75 +447,3 @@ class DocxReporter(BaseReporter):
     def _set_cell_bg(self, cell, hex_color: str):
         shading_xml = f'<w:shd {nsdecls("w")} w:fill="{hex_color}"/>'
         cell._tc.get_or_add_tcPr().append(parse_xml(shading_xml))
-
-    def _generate_severity_chart(self, stats: Dict[str, int]) -> Optional[str]:
-        """Generate a donut pie chart image and return its temp filepath."""
-        # Configure CJK font support for Windows and Linux
-        plt.rcParams["font.sans-serif"] = [
-            "Microsoft JhengHei",
-            "SimHei",
-            "PingFang TC",
-            "Noto Sans CJK TC",
-            "DejaVu Sans",
-        ]
-        plt.rcParams["axes.unicode_minus"] = False
-
-        labels = []
-        sizes = []
-        colors = []
-        color_map = {
-            "Critical": "#D9534F",
-            "High": "#ED6C02",
-            "Medium": "#F0AD4E",
-            "Low": "#0288D1",
-            "Info": "#757575",
-        }
-        zh_labels = {
-            "Critical": "極高 (Critical)",
-            "High": "高 (High)",
-            "Medium": "中 (Medium)",
-            "Low": "低 (Low)",
-            "Info": "資訊 (Info)",
-        }
-
-        for sev in ["Critical", "High", "Medium", "Low", "Info"]:
-            val = stats.get(sev, 0)
-            if val > 0:
-                labels.append(f"{zh_labels[sev]}: {val}")
-                sizes.append(val)
-                colors.append(color_map[sev])
-
-        if not sizes:
-            return None
-
-        fig, ax = plt.subplots(figsize=(6, 3.5), subplot_kw=dict(aspect="equal"))
-        wedges, texts, autotexts = ax.pie(
-            sizes,
-            autopct="%1.1f%%",
-            pctdistance=0.75,
-            colors=colors,
-            startangle=140,
-            textprops=dict(color="black", fontsize=9),
-        )
-
-        # Draw inner circle for donut look
-        centre_circle = plt.Circle((0, 0), 0.50, fc="white")
-        fig.gca().add_artist(centre_circle)
-
-        # Add legend
-        ax.legend(
-            wedges,
-            labels,
-            title="弱點等級分佈",
-            loc="center left",
-            bbox_to_anchor=(1, 0, 0.5, 1),
-            prop={"family": "sans-serif", "size": 9},
-        )
-
-        plt.tight_layout()
-
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-            tmp_path = tmp.name
-            plt.savefig(tmp_path, dpi=180, bbox_inches="tight")
-            plt.close(fig)
-            return tmp_path
