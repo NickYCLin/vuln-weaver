@@ -36,6 +36,9 @@
   - Web Lite 線上版支援同樣四種格式，解析與比對規則和 CLI 一致，全程在瀏覽器內完成。
   - Nmap 的開放通訊埠會列入主機清冊；只有 Telnet、過期 TLS 協定或明確回報 `VULNERABLE` 的 NSE 腳本會產生弱點項目。開放 FTP 埠本身不代表已檢出明文或匿名登入。
   - ZAP 與 Burp 報告以站台（主機 + 通訊埠）當作受影響對象，同一告警跨多個站台會合併成一筆並列出各站台；風險等級對應為 High / Medium / Low / Info，這兩套工具都沒有 Critical 等級。告警的 URL 或路徑清單（Burp 含確信度）保留在原始輸出欄位中。
+- **🧩 多份掃描結果合併**
+  - `parse` 可一次給多個檔案，主機依 IP 合併、開放埠取聯集；同掃描器的弱點沿用原 ID，跨掃描器（例如 Nessus + Nmap + ZAP）則冠上掃描器名稱避免 ID 撞號。
+  - `-f json` 匯出的結果可以再讀回來，合併後的 JSON 也能直接拿去做複測比對。Web Lite 同樣支援一次拖入多份檔案。
 - **🇹🇼 繁體中文在地化知識庫 (TW Localized Knowledge Base)**
   - 內建常見弱點（SSL/TLS 弱演算法、安全標頭缺漏、預設帳密、SQLi/XSS、Cookie 旗標、CSRF 等）的繁體中文說明與符合公部門語境的修補指引，Nessus 與 ZAP 的告警命名都能對上。
 - **🔄 殺手級複測比對 (Remediation Diff Engine)**
@@ -83,13 +86,15 @@ vuln-weaver/
 │   ├── __init__.py           # 套件初始化與版本宣告
 │   ├── models.py             # 統一資料模型 (Vulnerability, Host, ScanReport, Diff)
 │   ├── cli.py                # Command Line 命令列入口 (Click + Rich)
+│   ├── merger.py             # 多份掃描結果合併
 │   ├── parsers/              # 掃描檔案解析模組
 │   │   ├── __init__.py
 │   │   ├── base.py           # 抽象解析器基類 (BaseParser)
 │   │   ├── nessus.py         # Tenable Nessus XML 解析器
 │   │   ├── nmap.py           # Nmap XML 解析器
 │   │   ├── zap.py            # OWASP ZAP XML / JSON 報告解析器
-│   │   └── burp.py           # Burp Suite issues XML 解析器
+│   │   ├── burp.py           # Burp Suite issues XML 解析器
+│   │   └── vulnweaver_json.py  # 回讀 -f json 匯出的結果
 │   ├── knowledge/            # 繁體中文弱點知識庫
 │   │   ├── __init__.py
 │   │   └── kb_zh_tw.py       # 弱點標題、風險說明與修補建議對照表
@@ -159,6 +164,13 @@ python -m vuln_weaver.cli parse zap_report.json -f docx -o web_report.docx
 
 # 解析 Burp Suite「Report issues」匯出的 XML
 python -m vuln_weaver.cli parse burp_issues.xml -f docx -o web_report.docx
+
+# 多份掃描結果合併成一份報告，並指定專案標的名稱
+python -m vuln_weaver.cli parse internal.nessus dmz.nessus portscan.xml webapp.xml -n "114 年度資安健診" -o report.docx
+
+# 先合併存成 JSON，之後複測時拿合併後的 JSON 直接比對
+python -m vuln_weaver.cli parse internal.nessus portscan.xml -f json -o baseline.json
+python -m vuln_weaver.cli diff baseline.json rescan.json -o diff_report.docx
 ```
 
 #### 初掃 vs 複掃比對產出：
@@ -217,6 +229,9 @@ python -m vuln_weaver.cli diff baseline.nessus rescan.nessus -o diff.docx -t my_
 - [x] **Milestone 8**: Web Lite 加入 Nmap / ZAP 解析，比對規則與 CLI 對齊。
 - [x] **Milestone 9**: `docxtpl` 自訂 Word 範本、封面單位資訊與審核簽章欄位。
 - [x] **Milestone 10**: 支援 Burp Suite 匯出報告（CLI 與 Web Lite）。
+- [x] **Milestone 11**: 多份掃描結果合併成一份報告，JSON 可回讀做複測比對。
+- [ ] **Milestone 12**: Excel (.xlsx) 匯出弱點清冊與複測列管表。
+- [ ] **Milestone 13**: GitHub Actions CI 與 pip 安裝後的 `vuln-weaver` 指令驗證。
 
 ---
 

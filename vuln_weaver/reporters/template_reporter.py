@@ -20,7 +20,6 @@ TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
 DEFAULT_REPORT_TEMPLATE = TEMPLATE_DIR / "default_tw.docx"
 DEFAULT_DIFF_TEMPLATE = TEMPLATE_DIR / "default_diff_tw.docx"
 
-SCANNER_LABELS = {"nessus": "Tenable Nessus", "nmap": "Nmap", "zap": "OWASP ZAP", "burp": "Burp Suite"}
 STATUS_ZH = {DiffStatus.FIXED: "已修復", DiffStatus.OPEN: "未修復", DiffStatus.NEW: "新發現"}
 
 
@@ -85,7 +84,7 @@ def build_context(report: ScanReport, meta: Optional[ReportMeta] = None) -> Dict
     return {
         "scan_name": report.scan_name,
         "scanner": report.scanner_name,
-        "scanner_label": SCANNER_LABELS.get(report.scanner_name, report.scanner_name),
+        "scanner_label": report.scanner_label,
         "scan_date": _fmt_date(report.scan_date),
         "scan_date_iso": report.scan_date.strftime("%Y-%m-%d"),
         "generated_at": _fmt_date(datetime.now()),

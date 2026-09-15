@@ -98,11 +98,11 @@
     <!-- Drop Zone Section (Single Mode) -->
     <div id="section-single" class="max-w-2xl mx-auto">
       <div id="drop-zone" class="border-2 border-dashed border-slate-700 hover:border-sky-500 bg-slate-900/60 hover:bg-slate-900 rounded-2xl p-8 text-center cursor-pointer transition">
-        <input type="file" id="file-input" accept=".nessus,.xml,.json" class="hidden">
+        <input type="file" id="file-input" accept=".nessus,.xml,.json" multiple class="hidden">
         <div class="w-16 h-16 bg-sky-950 text-sky-400 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-sky-800/50">
           <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
         </div>
-        <h3 class="text-base font-semibold text-white mb-1">拖曳或點擊上傳掃描檔案</h3>
+        <h3 class="text-base font-semibold text-white mb-1">拖曳或點擊上傳掃描檔案（可一次多份，自動合併成一份報告）</h3>
         <p class="text-xs text-slate-400 mb-4">支援 Tenable Nessus (.nessus)、Nmap XML (-oX 輸出的 .xml)、OWASP ZAP (.xml / .json) 與 Burp Suite (.xml)，.xml 會依內容自動分辨；完全於瀏覽器記憶體內解析，檔案絕不離線。</p>
         <button type="button" onclick="document.getElementById('file-input').click()" class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-sm font-medium transition shadow">
           選擇檔案
@@ -255,10 +255,11 @@
     dropZone.addEventListener('drop', (e) => {
       e.preventDefault();
       dropZone.classList.remove('border-sky-500');
-      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+      if (e.dataTransfer.files.length) handleFiles(Array.from(e.dataTransfer.files));
     });
     fileInput.addEventListener('change', (e) => {
-      if (e.target.files.length) handleFile(e.target.files[0]);
+      if (e.target.files.length) handleFiles(Array.from(e.target.files));
+      fileInput.value = '';
     });
 
     // Diff Drag and Drop Setup
@@ -309,13 +310,13 @@
       reader.readAsText(file);
     }
 
-    const SCANNER_LABELS = { nessus: 'Tenable Nessus', nmap: 'Nmap', zap: 'OWASP ZAP', burp: 'Burp Suite' };
+    const SCANNER_LABELS = VulnWeaver.SCANNER_NAMES;
 
     function handleDiffFile(file, isBaseline) {
       readAndParse(file, (parsed) => {
         const labelId = isBaseline ? 'label-base' : 'label-rescan';
         const label = document.getElementById(labelId);
-        label.innerText = `已載入: ${file.name}（${SCANNER_LABELS[parsed.scanner]}，${parsed.hosts.length} 台主機、${parsed.vulns.length} 項弱點）`;
+        label.innerText = `已載入: ${file.name}（${VulnWeaver.scannerLabel(parsed.scanner)}，${parsed.hosts.length} 台主機、${parsed.vulns.length} 項弱點）`;
         label.classList.add(isBaseline ? 'text-sky-400' : 'text-emerald-400');
         if (isBaseline) baselineData = parsed; else rescanData = parsed;
         document.getElementById('btn-run-diff').disabled = !(baselineData && rescanData);
@@ -335,17 +336,44 @@
       exportDiffWordReport(baselineData, rescanData, diff);
     }
 
-    function handleFile(file) {
-      readAndParse(file, (parsed) => {
-        currentParsedData = parsed;
-        renderResults(currentParsedData);
-      }, 'single-error');
+    function readFileText(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = () => reject(new Error(`讀取 ${file.name} 失敗`));
+        reader.readAsText(file);
+      });
     }
 
-    function renderResults(data) {
+    async function handleFiles(files) {
+      clearError('single-error');
+      const parsed = [];
+      for (const file of files) {
+        try {
+          parsed.push(VulnWeaver.parseScanFile(file.name, await readFileText(file)));
+        } catch (err) {
+          showError('single-error', `無法解析 ${file.name}：${err.message}`);
+          return;
+        }
+      }
+      try {
+        currentParsedData = VulnWeaver.mergeReports(parsed);
+      } catch (err) {
+        showError('single-error', err.message);
+        return;
+      }
+      renderResults(currentParsedData, files.length);
+    }
+
+    function handleFile(file) {
+      return handleFiles([file]);
+    }
+
+    function renderResults(data, fileCount) {
       document.getElementById('result-container').classList.remove('hidden');
       document.getElementById('res-scan-name').innerText = data.scanName;
-      document.getElementById('res-scanner').innerText = SCANNER_LABELS[data.scanner] || data.scanner;
+      const scannerText = VulnWeaver.scannerLabel(data.scanner);
+      document.getElementById('res-scanner').innerText = fileCount > 1 ? `${scannerText}（已合併 ${fileCount} 份）` : scannerText;
       document.getElementById('res-host-count').innerText = `受檢測目標主機：${data.hosts.length} 台`;
       document.getElementById('res-vuln-count').innerText = `共彙整 ${data.vulns.length} 項獨立弱點`;
 
@@ -435,7 +463,7 @@
               spacing: { after: 50 }
             }),
             new Paragraph({
-              text: `掃描工具：${SCANNER_LABELS[currentParsedData.scanner] || currentParsedData.scanner}　受檢主機：${currentParsedData.hosts.length} 台`,
+              text: `掃描工具：${VulnWeaver.scannerLabel(currentParsedData.scanner)}　受檢主機：${currentParsedData.hosts.length} 台`,
               alignment: AlignmentType.CENTER,
               spacing: { after: 300 }
             }),
@@ -508,7 +536,7 @@
         sections: [{
           children: [
             new Paragraph({ text: "弱點改善複測對比報告書", heading: HeadingLevel.TITLE }),
-            new Paragraph({ text: `初掃：${base.scanName}｜複掃：${rescan.scanName}｜掃描工具：${SCANNER_LABELS[base.scanner] || base.scanner}`, spacing: { before: 100 } }),
+            new Paragraph({ text: `初掃：${base.scanName}｜複掃：${rescan.scanName}｜掃描工具：${VulnWeaver.scannerLabel(base.scanner)}`, spacing: { before: 100 } }),
             new Paragraph({ text: `已修復: ${fixed} 項 | 未修復: ${open} 項 | 新增: ${newly} 項（按弱點 × 主機／服務計算）`, spacing: { before: 100, after: 200 } }),
             ...items.map(it => new Paragraph({ text: `• [${it.status}] ${it.title}` }))
           ]

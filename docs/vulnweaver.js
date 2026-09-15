@@ -405,6 +405,47 @@
   }
 
   // ---------------------------------------------------------------------------
+  // 多份掃描結果合併（對齊 vuln_weaver/merger.py）
+  // 跨掃描器合併時弱點 ID 冠上掃描器名稱，同掃描器則沿用原 ID。
+  // ---------------------------------------------------------------------------
+  const SCANNER_NAMES = { nessus: 'Tenable Nessus', nmap: 'Nmap', zap: 'OWASP ZAP', burp: 'Burp Suite' };
+
+  function scannerLabel(scanner) {
+    return String(scanner || '').split('+').map((p) => SCANNER_NAMES[p] || p).join(' + ');
+  }
+
+  function mergeReports(reports, scanName) {
+    if (!reports || !reports.length) throw new Error('沒有任何掃描結果可以合併');
+    if (reports.length === 1 && !scanName) return reports[0];
+
+    const scanners = Array.from(new Set(reports.map((r) => r.scanner))).sort();
+    const multi = scanners.length > 1;
+    const hosts = new Map();
+    const vulns = new Map();
+
+    reports.forEach((report) => {
+      report.hosts.forEach((h) => {
+        const existing = hosts.get(h.ip);
+        if (!existing) { hosts.set(h.ip, { ...h, openPorts: [...h.openPorts] }); return; }
+        if (!existing.fqdn || existing.fqdn === '-') existing.fqdn = h.fqdn;
+        if (!existing.os || existing.os === '未識別') existing.os = h.os;
+        existing.openPorts = Array.from(new Set([...existing.openPorts, ...h.openPorts])).sort((a, b) => a - b);
+      });
+      report.vulns.forEach((v) => {
+        const key = multi ? `${report.scanner}:${v.id}` : v.id;
+        const existing = vulns.get(key);
+        if (!existing) { vulns.set(key, { ...v, id: key, affectedHosts: [...v.affectedHosts], cves: [...v.cves] }); return; }
+        v.affectedHosts.forEach((t) => { if (!existing.affectedHosts.includes(t)) existing.affectedHosts.push(t); });
+        v.cves.forEach((c) => { if (!existing.cves.includes(c)) existing.cves.push(c); });
+        if (v.severityRank > existing.severityRank) { existing.severity = v.severity; existing.severityRank = v.severityRank; }
+      });
+    });
+
+    const name = scanName || Array.from(new Set(reports.map((r) => r.scanName))).join('、');
+    return finalize(scanners.join('+'), name, Array.from(hosts.values()), vulns);
+  }
+
+  // ---------------------------------------------------------------------------
   // 複測比對（對齊 comparator/diff.py：按弱點 × 主機／服務判定）
   // ---------------------------------------------------------------------------
   function compareReports(baseline, rescan) {
@@ -455,6 +496,7 @@
   global.VulnWeaver = {
     TW_KB, enrichZh,
     parseNessusXML, parseNmapXML, parseZapXML, parseZapJSON, parseBurpXML, parseScanFile,
+    mergeReports, scannerLabel, SCANNER_NAMES,
     compareReports,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -125,7 +125,7 @@ class DocxReporter(BaseReporter):
         # Metadata table
         meta_items = self._cover_meta_rows(meta) + [
             ("受測主機總數：", f"{len(report.hosts)} 台主機 (IP)"),
-            ("掃描引擎：", f"{report.scanner_name.capitalize()} 掃描工具"),
+            ("掃描引擎：", report.scanner_label),
             ("檢測產出日期：", report.scan_date.strftime("%Y 年 %m 月 %d 日")),
             ("產製工具：", "VulnWeaver 自動化合規檢核系統"),
         ]

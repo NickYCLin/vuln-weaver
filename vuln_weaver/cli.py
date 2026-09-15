@@ -11,6 +11,8 @@ from vuln_weaver.parsers.nessus import NessusParser
 from vuln_weaver.parsers.nmap import NmapParser
 from vuln_weaver.parsers.zap import ZapParser
 from vuln_weaver.parsers.burp import BurpParser
+from vuln_weaver.parsers.vulnweaver_json import VulnWeaverJsonParser, looks_like_vulnweaver_json
+from vuln_weaver.merger import merge_reports
 from vuln_weaver.models import ReportMeta
 from vuln_weaver.reporters.docx_reporter import DocxReporter
 from vuln_weaver.reporters.template_reporter import TemplateReporter
@@ -50,7 +52,7 @@ def get_parser_for_file(file_path: Path):
     if suffix == ".nessus":
         return NessusParser()
     if suffix == ".json":
-        return ZapParser()
+        return VulnWeaverJsonParser() if looks_like_vulnweaver_json(file_path) else ZapParser()
     if suffix == ".xml":
         # Nmap、ZAP、Burp 都輸出 .xml，依根節點分辨；根節點無法辨識時交給 Nmap 解析器回報錯誤
         parser_cls = XML_ROOT_PARSERS.get(_xml_root_tag(file_path), NmapParser)
@@ -106,27 +108,42 @@ def main():
     pass
 
 
+def load_report(file_path: Path):
+    """解析單一掃描檔；格式不支援或內容不對時以 ClickException 回報。"""
+    parser = get_parser_for_file(file_path)
+    if not parser:
+        raise click.ClickException(
+            f"目前副檔名 {file_path.suffix} 尚不支援，請使用 .nessus、.xml (Nmap / ZAP / Burp) 或 .json (ZAP / VulnWeaver) 檔案。"
+        )
+    try:
+        return parser.parse(file_path)
+    except (ValueError, ET.ParseError) as exc:
+        raise click.ClickException(f"掃描檔 {file_path.name} 解析失敗：{exc}") from exc
+
+
 @main.command()
-@click.argument("scan_file", type=click.Path(exists=True))
+@click.argument("scan_files", nargs=-1, required=True, type=click.Path(exists=True, dir_okay=False))
 @click.option("-f", "--format", "output_format", type=click.Choice(["docx", "json"]), default="docx", help="輸出格式")
 @click.option("-o", "--output", "output_file", type=click.Path(), default="report.docx", help="輸出檔案路徑")
 @click.option("-l", "--lang", "language", type=click.Choice(["zh-TW", "en"]), default="zh-TW", help="報告語言")
+@click.option("-n", "--scan-name", "scan_name", default=None, help="報告上的專案標的名稱；合併多檔時建議指定")
 @report_meta_options
-def parse(scan_file, output_format, output_file, language, template_file,
+def parse(scan_files, output_format, output_file, language, scan_name, template_file,
           org, vendor, project_code, tester, reviewer, approver, extra_vars):
-    """解析弱點掃描檔案 (Nessus / Nmap / OWASP ZAP / Burp Suite) 並生成標準報告。"""
-    file_path = Path(scan_file)
-    console.print(Panel.fit(f"[bold cyan]VulnWeaver 解析任務[/bold cyan]\n檔案: {file_path.name}\n輸出目標: {output_file} ({output_format.upper()})", border_style="cyan"))
+    """解析一或多份掃描檔 (Nessus / Nmap / OWASP ZAP / Burp Suite)，合併後生成標準報告。"""
+    file_paths = [Path(f) for f in scan_files]
+    file_list = "\n".join(f"檔案: {p.name}" for p in file_paths)
+    console.print(Panel.fit(f"[bold cyan]VulnWeaver 解析任務[/bold cyan]\n{file_list}\n輸出目標: {output_file} ({output_format.upper()})", border_style="cyan"))
 
-    parser = get_parser_for_file(file_path)
-    if not parser:
-        raise click.ClickException(f"目前副檔名 {file_path.suffix} 尚不支援，請使用 .nessus、.xml (Nmap / ZAP / Burp) 或 .json (ZAP) 檔案。")
-
-    with console.status(f"[bold green]正在使用 {parser.scanner_name.upper()} 解析器處理並對齊繁體中文知識庫...[/bold green]"):
+    with console.status("[bold green]正在解析掃描檔並對齊繁體中文知識庫...[/bold green]"):
+        reports = [load_report(p) for p in file_paths]
         try:
-            report = parser.parse(file_path)
-        except (ValueError, ET.ParseError) as exc:
-            raise click.ClickException(f"掃描檔解析失敗：{exc}") from exc
+            report = merge_reports(reports, scan_name=scan_name)
+        except ValueError as exc:
+            raise click.ClickException(f"合併掃描結果失敗：{exc}") from exc
+
+    if len(reports) > 1:
+        console.print(f"[dim]已合併 {len(reports)} 份掃描結果（{report.scanner_label}）[/dim]")
 
     # Display summary
     stats = report.summary_stats
@@ -176,19 +193,13 @@ def diff(baseline_file, rescan_file, output_file, template_file,
 
     console.print(Panel.fit(f"[bold cyan]VulnWeaver 複測比對任務[/bold cyan]\n初掃 (Baseline): {base_path.name}\n複掃 (Rescan): {rescan_path.name}\n輸出目標: {output_file}", border_style="cyan"))
 
-    base_parser = get_parser_for_file(base_path)
-    rescan_parser = get_parser_for_file(rescan_path)
-
-    if not base_parser or not rescan_parser:
-        raise click.ClickException("比對檔案格式不支援，請使用 .nessus、.xml 或 .json 檔案。")
-
     with console.status("[bold green]正在解析掃描檔案並進行差異比對...[/bold green]"):
+        base_report = load_report(base_path)
+        rescan_report = load_report(rescan_path)
         try:
-            base_report = base_parser.parse(base_path)
-            rescan_report = rescan_parser.parse(rescan_path)
             diff_report = VulnerabilityComparator.compare(base_report, rescan_report)
-        except (ValueError, ET.ParseError) as exc:
-            raise click.ClickException(f"掃描檔解析或比對失敗：{exc}") from exc
+        except ValueError as exc:
+            raise click.ClickException(f"複測比對失敗：{exc}") from exc
 
     diff_table = Table(title="複測比對成效統計")
     diff_table.add_column("項目", style="bold")

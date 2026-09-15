@@ -64,6 +64,19 @@ class Host(BaseModel):
     )
 
 
+SCANNER_LABELS = {
+    "nessus": "Tenable Nessus",
+    "nmap": "Nmap",
+    "zap": "OWASP ZAP",
+    "burp": "Burp Suite",
+}
+
+
+def scanner_label(scanner_name: str) -> str:
+    """把 scanner_name（含合併後的 nessus+nmap）轉成報告上的顯示名稱。"""
+    return " + ".join(SCANNER_LABELS.get(part, part) for part in scanner_name.split("+"))
+
+
 class ScanReport(BaseModel):
     scanner_name: str
     scanner_version: Optional[str] = None
@@ -72,6 +85,10 @@ class ScanReport(BaseModel):
     target_scope: List[str] = Field(default_factory=list)
     hosts: List[Host] = Field(default_factory=list)
     vulnerabilities: List[Vulnerability] = Field(default_factory=list)
+
+    @property
+    def scanner_label(self) -> str:
+        return scanner_label(self.scanner_name)
 
     @property
     def summary_stats(self) -> Dict[str, int]:
