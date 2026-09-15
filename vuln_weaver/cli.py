@@ -115,9 +115,9 @@ def diff(baseline_file, rescan_file, output_file):
         try:
             base_report = base_parser.parse(base_path)
             rescan_report = rescan_parser.parse(rescan_path)
+            diff_report = VulnerabilityComparator.compare(base_report, rescan_report)
         except (ValueError, ET.ParseError) as exc:
-            raise click.ClickException(f"掃描檔解析失敗：{exc}") from exc
-        diff_report = VulnerabilityComparator.compare(base_report, rescan_report)
+            raise click.ClickException(f"掃描檔解析或比對失敗：{exc}") from exc
 
     diff_table = Table(title="複測比對成效統計")
     diff_table.add_column("項目", style="bold")

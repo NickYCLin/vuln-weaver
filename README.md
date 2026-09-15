@@ -141,6 +141,8 @@ python -m vuln_weaver.cli parse sample.xml -f json -o report.json
 python -m vuln_weaver.cli diff baseline.nessus rescan.nessus -o diff_report.docx
 ```
 
+比對會按「弱點 ID × 主機／服務」區分狀態；同一弱點在不同主機或通訊埠可同時出現已修復、未修復或新增。初掃和複掃須來自同一掃描器、涵蓋相同主機；否則程式會拒絕產出「已修復」結論。請另外確認兩次掃描使用相同的通訊埠、服務與腳本設定，目前程式尚無法自動核對掃描設定。
+
 ---
 
 ## 🛣️ 開發路線圖 (Roadmap)

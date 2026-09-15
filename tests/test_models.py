@@ -33,18 +33,21 @@ def test_scan_report_summary():
 
 
 def test_comparator_fixed_open_new():
-    v1 = Vulnerability(id="CVE-2023-0001", title="Fixed Bug", severity=Severity.HIGH)
-    v2 = Vulnerability(id="CVE-2023-0002", title="Still Open Bug", severity=Severity.MEDIUM)
-    v3 = Vulnerability(id="CVE-2023-0003", title="Newly Appeared Bug", severity=Severity.LOW)
+    target = ["10.0.0.1:443/tcp"]
+    v1 = Vulnerability(id="CVE-2023-0001", title="Fixed Bug", severity=Severity.HIGH, affected_hosts=target)
+    v2 = Vulnerability(id="CVE-2023-0002", title="Still Open Bug", severity=Severity.MEDIUM, affected_hosts=target)
+    v3 = Vulnerability(id="CVE-2023-0003", title="Newly Appeared Bug", severity=Severity.LOW, affected_hosts=target)
 
     baseline = ScanReport(
         scanner_name="nessus",
         scan_name="Baseline Scan",
+        hosts=[Host(ip="10.0.0.1")],
         vulnerabilities=[v1, v2],
     )
     rescan = ScanReport(
         scanner_name="nessus",
         scan_name="Rescan Scan",
+        hosts=[Host(ip="10.0.0.1")],
         vulnerabilities=[v2, v3],
     )
 

@@ -356,7 +356,7 @@ class DocxReporter(BaseReporter):
         for idx, item in enumerate(diff_report.items, start=1):
             r = table.rows[idx]
             r.cells[0].text = str(idx)
-            r.cells[1].text = item.title
+            r.cells[1].text = f"{item.title}\n主機／服務：{', '.join(item.affected_hosts)}"
             r.cells[2].text = item.severity.zh_tw
             
             st_text = {
