@@ -1,4 +1,5 @@
 from pathlib import Path
+import pytest
 from vuln_weaver.parsers.nessus import NessusParser
 from vuln_weaver.models import Severity
 
@@ -46,3 +47,18 @@ def test_nessus_parser_basic():
 
     # Total unique vulnerabilities
     assert len(report.vulnerabilities) == 3
+
+
+@pytest.mark.parametrize(
+    ("xml", "message"),
+    [
+        ("<nmaprun><Report /></nmaprun>", "根節點"),
+        ("<NessusClientData_v2><Policy /></NessusClientData_v2>", "缺少 Report"),
+    ],
+)
+def test_nessus_parser_rejects_wrong_scan_format(tmp_path, xml, message):
+    scan_file = tmp_path / "invalid.nessus"
+    scan_file.write_text(xml, encoding="utf-8")
+
+    with pytest.raises(ValueError, match=message):
+        NessusParser().parse(scan_file)

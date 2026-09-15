@@ -23,8 +23,13 @@ class NessusParser(BaseParser):
         tree = ET.parse(str(path))
         root = tree.getroot()
 
+        if root.tag != "NessusClientData_v2":
+            raise ValueError("不是有效的 Nessus 掃描檔：XML 根節點應為 NessusClientData_v2")
+
         report_elem = root.find("Report")
-        scan_name = report_elem.get("name", path.stem) if report_elem is not None else path.stem
+        if report_elem is None:
+            raise ValueError("不是有效的 Nessus 掃描檔：缺少 Report 節點")
+        scan_name = report_elem.get("name", path.stem)
 
         hosts: List[Host] = []
         vuln_dict: Dict[str, Vulnerability] = {}
