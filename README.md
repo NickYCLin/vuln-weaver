@@ -31,10 +31,12 @@
 ## 🌟 核心特色 (Key Features)
 
 - **⚡ 掃描結果解析**
-  - CLI 支援 **Tenable Nessus (`.nessus`)** 與 **Nmap XML (`-oX` 輸出的 `.xml`)**，轉成統一資料模型；OWASP ZAP 尚未支援。
+  - CLI 支援 **Tenable Nessus (`.nessus`)**、**Nmap XML (`-oX` 輸出的 `.xml`)** 與 **OWASP ZAP 傳統報告（`.xml` / `.json`）**，轉成統一資料模型。
+  - `.xml` 會依根節點自動分辨是 Nmap 還是 ZAP，不需另外指定掃描器。
   - Nmap 的開放通訊埠會列入主機清冊；只有 Telnet、過期 TLS 協定或明確回報 `VULNERABLE` 的 NSE 腳本會產生弱點項目。開放 FTP 埠本身不代表已檢出明文或匿名登入。
+  - ZAP 報告以站台（主機 + 通訊埠）當作受影響對象，同一告警跨多個站台會合併成一筆並列出各站台；風險等級對應為 High / Medium / Low / Info，ZAP 沒有 Critical 等級。告警的 URL 清單保留在原始輸出欄位中。
 - **🇹🇼 繁體中文在地化知識庫 (TW Localized Knowledge Base)**
-  - 內建常見弱點（如 SSL/TLS 弱演算法、預設帳密、SQLi/XSS）的繁體中文說明與符合公部門語境的修補指引。
+  - 內建常見弱點（SSL/TLS 弱演算法、安全標頭缺漏、預設帳密、SQLi/XSS、Cookie 旗標、CSRF 等）的繁體中文說明與符合公部門語境的修補指引，Nessus 與 ZAP 的告警命名都能對上。
 - **🔄 殺手級複測比對 (Remediation Diff Engine)**
   - 傳入初掃（Baseline）與複測（Rescan）報告，自動比對並產出：
     - ✅ **Fixed (已修復)**：初掃存在、複掃已消失。
@@ -53,7 +55,8 @@
 flowchart LR
     A["Nessus (.nessus)"] --> D["Parsers 模組"]
     B["Nmap (.xml)"] --> D
-    C["未來支援其他掃描器"] -.-> D
+    C["OWASP ZAP (.xml / .json)"] --> D
+    C2["未來支援其他掃描器"] -.-> D
     
     D --> E["統一資料模型 (ScanReport)"]
     
@@ -81,19 +84,23 @@ vuln-weaver/
 │   │   ├── __init__.py
 │   │   ├── base.py           # 抽象解析器基類 (BaseParser)
 │   │   ├── nessus.py         # Tenable Nessus XML 解析器
-│   │   └── nmap.py           # Nmap XML 解析器
+│   │   ├── nmap.py           # Nmap XML 解析器
+│   │   └── zap.py            # OWASP ZAP XML / JSON 報告解析器
+│   ├── knowledge/            # 繁體中文弱點知識庫
+│   │   ├── __init__.py
+│   │   └── kb_zh_tw.py       # 弱點標題、風險說明與修補建議對照表
 │   ├── comparator/           # 複掃比對引擎
 │   │   ├── __init__.py
 │   │   └── diff.py           # 初掃與複掃差異比對演算法
-│   ├── reporters/            # 報表生成引擎
-│   │   ├── __init__.py
-│   │   ├── base.py           # 抽象報表基類
-│   │   └── docx_reporter.py  # docxtpl Word 報表產出模組
-│   └── templates/            # 預設 Word 範本目錄
-│       └── default_tw.docx   # 台灣公部門/標準資安健診範本
+│   └── reporters/            # 報表生成引擎
+│       ├── __init__.py
+│       ├── base.py           # 抽象報表基類
+│       └── docx_reporter.py  # python-docx Word 報表產出模組
 ├── tests/                    # 單元測試目錄
-│   ├── __init__.py
-│   └── test_models.py
+│   ├── fixtures/             # Nessus / Nmap / ZAP 測試用樣本檔
+│   └── test_*.py
+├── docs/
+│   └── index.html            # GitHub Pages Web Lite 線上版（目前僅支援 .nessus）
 ├── .gitignore
 ├── pyproject.toml            # 現代化打包配置
 ├── requirements.txt          # Python 相依套件清單
@@ -133,6 +140,10 @@ python -m vuln_weaver.cli parse sample.nessus -f docx -o report.docx
 
 # 解析 Nmap -oX 輸出的 XML，將主機與檢出項目匯出為 JSON
 python -m vuln_weaver.cli parse sample.xml -f json -o report.json
+
+# 解析 OWASP ZAP 匯出的傳統 XML 或 JSON 報告
+python -m vuln_weaver.cli parse zap_report.xml -f docx -o web_report.docx
+python -m vuln_weaver.cli parse zap_report.json -f docx -o web_report.docx
 ```
 
 #### 初掃 vs 複掃比對產出：
@@ -148,12 +159,15 @@ python -m vuln_weaver.cli diff baseline.nessus rescan.nessus -o diff_report.docx
 ## 🛣️ 開發路線圖 (Roadmap)
 
 - [x] **Milestone 1**: 專案基礎骨架、資料模型設計與 CLI 框架。
-- [ ] **Milestone 2**: 實作 Nessus (`.nessus`) XML 解析器與資料正規化。
-- [ ] **Milestone 3**: 實作 `docxtpl` 範本引擎，匯出第一版資安健診標準 Word 報告。
-- [ ] **Milestone 4**: 健全繁體中文弱點描述知識庫與修復字典。
-- [ ] **Milestone 5**: 完善初掃 vs 複測比對演算法與複驗對照表輸出。
-- [ ] **Milestone 6**: 支援 Nmap XML 與 Web 漏洞（OWASP ZAP / Burp Suite）。
-- [ ] **Milestone 7**: 開發輕量 Streamlit Web 介面，支援拖拉即時預覽與下載。
+- [x] **Milestone 2**: 實作 Nessus (`.nessus`) XML 解析器與資料正規化。
+- [x] **Milestone 3**: 以 `python-docx` 匯出第一版資安健診標準 Word 報告（自訂範本尚未支援）。
+- [x] **Milestone 4**: 建立繁體中文弱點描述知識庫與修復字典（持續補充中）。
+- [x] **Milestone 5**: 初掃 vs 複測比對演算法與複驗對照表輸出。
+- [x] **Milestone 6**: 支援 Nmap XML 與 OWASP ZAP 報告；Burp Suite 尚未支援。
+- [x] **Milestone 7**: GitHub Pages Web Lite 線上版（目前僅支援 `.nessus`）。
+- [ ] **Milestone 8**: Web Lite 加入 Nmap / ZAP 解析，與 CLI 支援範圍對齊。
+- [ ] **Milestone 9**: 支援 `docxtpl` 自訂 Word 範本與審核簽章欄位。
+- [ ] **Milestone 10**: 支援 Burp Suite 匯出報告。
 
 ---
 

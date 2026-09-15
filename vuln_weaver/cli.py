@@ -9,6 +9,7 @@ from rich.panel import Panel
 from vuln_weaver import __version__
 from vuln_weaver.parsers.nessus import NessusParser
 from vuln_weaver.parsers.nmap import NmapParser
+from vuln_weaver.parsers.zap import ZapParser
 from vuln_weaver.reporters.docx_reporter import DocxReporter
 from vuln_weaver.comparator.diff import VulnerabilityComparator
 
@@ -23,14 +24,34 @@ if sys.platform == "win32":
 console = Console()
 
 
+XML_ROOT_PARSERS = {
+    "nmaprun": NmapParser,
+    "OWASPZAPReport": ZapParser,
+    "NessusClientData_v2": NessusParser,
+}
+
+
+def _xml_root_tag(file_path: Path):
+    """只讀到第一個起始標籤就停，避免為了辨識格式把整份掃描檔載入記憶體。"""
+    try:
+        for _event, elem in ET.iterparse(str(file_path), events=("start",)):
+            return elem.tag
+    except ET.ParseError:
+        return None
+    return None
+
+
 def get_parser_for_file(file_path: Path):
     suffix = file_path.suffix.lower()
     if suffix == ".nessus":
         return NessusParser()
-    elif suffix == ".xml":
-        return NmapParser()
-    else:
-        return None
+    if suffix == ".json":
+        return ZapParser()
+    if suffix == ".xml":
+        # Nmap 與 ZAP 都輸出 .xml，依根節點分辨；根節點無法辨識時交給 Nmap 解析器回報錯誤
+        parser_cls = XML_ROOT_PARSERS.get(_xml_root_tag(file_path), NmapParser)
+        return parser_cls()
+    return None
 
 
 @click.group()
@@ -46,13 +67,13 @@ def main():
 @click.option("-o", "--output", "output_file", type=click.Path(), default="report.docx", help="輸出檔案路徑")
 @click.option("-l", "--lang", "language", type=click.Choice(["zh-TW", "en"]), default="zh-TW", help="報告語言")
 def parse(scan_file, output_format, output_file, language):
-    """解析弱點掃描檔案 (Nessus / Nmap) 並生成標準報告。"""
+    """解析弱點掃描檔案 (Nessus / Nmap / OWASP ZAP) 並生成標準報告。"""
     file_path = Path(scan_file)
     console.print(Panel.fit(f"[bold cyan]VulnWeaver 解析任務[/bold cyan]\n檔案: {file_path.name}\n輸出目標: {output_file} ({output_format.upper()})", border_style="cyan"))
 
     parser = get_parser_for_file(file_path)
     if not parser:
-        raise click.ClickException(f"目前副檔名 {file_path.suffix} 尚不支援，請使用 .nessus 或 .xml (Nmap) 檔案。")
+        raise click.ClickException(f"目前副檔名 {file_path.suffix} 尚不支援，請使用 .nessus、.xml (Nmap / ZAP) 或 .json (ZAP) 檔案。")
 
     with console.status(f"[bold green]正在使用 {parser.scanner_name.upper()} 解析器處理並對齊繁體中文知識庫...[/bold green]"):
         try:
@@ -109,7 +130,7 @@ def diff(baseline_file, rescan_file, output_file):
     rescan_parser = get_parser_for_file(rescan_path)
 
     if not base_parser or not rescan_parser:
-        raise click.ClickException("比對檔案格式不支援，請使用 .nessus 或 .xml 檔案。")
+        raise click.ClickException("比對檔案格式不支援，請使用 .nessus、.xml 或 .json 檔案。")
 
     with console.status("[bold green]正在解析掃描檔案並進行差異比對...[/bold green]"):
         try:
