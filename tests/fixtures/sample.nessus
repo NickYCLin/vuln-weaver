@@ -1,0 +1,47 @@
+<?xml version="1.0" ?>
+<NessusClientData_v2>
+  <Policy>
+    <policyName>Basic Network Scan</policyName>
+  </Policy>
+  <Report name="2026 Q1 Internal Security Audit">
+    <ReportHost name="192.168.10.50">
+      <HostProperties>
+        <tag name="host-ip">192.168.10.50</tag>
+        <tag name="host-fqdn">web-app01.local</tag>
+        <tag name="operating-system">Ubuntu Linux 20.04</tag>
+        <tag name="mac-address">00:0c:29:ab:cd:ef</tag>
+      </HostProperties>
+      <ReportItem port="443" svc_name="https" protocol="tcp" severity="2" pluginID="104743" pluginName="TLS Version 1.0 Protocol Detection" pluginFamily="General">
+        <description>The remote service accepts connections encrypted using TLS 1.0. TLS 1.0 has known vulnerabilities and is deprecated.</description>
+        <solution>Enable TLS 1.2 and/or TLS 1.3 and disable TLS 1.0.</solution>
+        <cvss_base_score>4.3</cvss_base_score>
+        <cvss3_base_score>7.4</cvss3_base_score>
+        <cve>CVE-2011-3389</cve>
+        <cwe>CWE-310</cwe>
+        <see_also>https://tools.ietf.org/html/rfc8996</see_also>
+        <plugin_output>TLSv1.0 is enabled and accepted.</plugin_output>
+      </ReportItem>
+      <ReportItem port="80" svc_name="http" protocol="tcp" severity="1" pluginID="11229" pluginName="Web Server Information Disclosure via Server Header" pluginFamily="Web Servers">
+        <description>The remote web server reveals its type and version in the Server response header.</description>
+        <solution>Configure the server to omit or disguise version tokens in HTTP headers.</solution>
+        <plugin_output>Server: Apache/2.4.41 (Ubuntu)</plugin_output>
+      </ReportItem>
+    </ReportHost>
+    <ReportHost name="192.168.10.51">
+      <HostProperties>
+        <tag name="host-ip">192.168.10.51</tag>
+        <tag name="host-fqdn">db-cluster01.local</tag>
+        <tag name="operating-system">CentOS Linux 7</tag>
+      </HostProperties>
+      <ReportItem port="443" svc_name="https" protocol="tcp" severity="2" pluginID="104743" pluginName="TLS Version 1.0 Protocol Detection" pluginFamily="General">
+        <description>The remote service accepts connections encrypted using TLS 1.0.</description>
+        <solution>Enable TLS 1.2 and/or TLS 1.3 and disable TLS 1.0.</solution>
+        <cvss3_base_score>7.4</cvss3_base_score>
+      </ReportItem>
+      <ReportItem port="22" svc_name="ssh" protocol="tcp" severity="1" pluginID="70658" pluginName="SSH Weak MAC Algorithms Enabled" pluginFamily="General">
+        <description>The remote SSH server is configured to allow weak MAC algorithms such as MD5 or 96-bit HMAC.</description>
+        <solution>Disable weak MAC algorithms in sshd_config.</solution>
+      </ReportItem>
+    </ReportHost>
+  </Report>
+</NessusClientData_v2>
