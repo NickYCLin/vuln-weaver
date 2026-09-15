@@ -7,6 +7,7 @@ from rich.panel import Panel
 
 from vuln_weaver import __version__
 from vuln_weaver.parsers.nessus import NessusParser
+from vuln_weaver.reporters.docx_reporter import DocxReporter
 from vuln_weaver.comparator.diff import VulnerabilityComparator
 
 # Ensure console supports UTF-8 on Windows
@@ -35,7 +36,7 @@ def main():
 def parse(scan_file, output_format, output_file, language):
     """解析弱點掃描檔案並生成標準報告。"""
     file_path = Path(scan_file)
-    console.print(Panel.fit(f"[bold cyan]VulnWeaver 解析任務[/bold cyan]\n檔案: {file_path.name}\n輸出格式: {output_format} -> {output_file}", border_style="cyan"))
+    console.print(Panel.fit(f"[bold cyan]VulnWeaver 解析任務[/bold cyan]\n檔案: {file_path.name}\n輸出目標: {output_file} ({output_format.upper()})", border_style="cyan"))
 
     # Determine parser
     if file_path.suffix.lower() == ".nessus":
@@ -67,29 +68,18 @@ def parse(scan_file, output_format, output_file, language):
     )
     console.print(table)
 
-    # Vulnerability Table
-    vuln_table = Table(title="檢出弱點清單 (Top 10)")
-    vuln_table.add_column("等級", style="bold", justify="center", width=8)
-    vuln_table.add_column("弱點名稱 (繁中/原名)", style="white")
-    vuln_table.add_column("CVE / 編號", style="cyan", width=16)
-    vuln_table.add_column("受影響主機數", justify="center", width=12)
+    # Generate document if docx format requested
+    if output_format == "docx":
+        with console.status(f"[bold green]正在生成 Word 報告文件 ({output_file})...[/bold green]"):
+            reporter = DocxReporter()
+            out_path = reporter.generate(report, output_file)
+            console.print(f"[bold green][V] 成功產出專業 Word 報告書: {out_path.resolve()}[/bold green]")
+    elif output_format == "json":
+        out_path = Path(output_file)
+        out_path.write_text(report.model_dump_json(indent=2), encoding="utf-8")
+        console.print(f"[bold green][V] 成功匯出 JSON 資料: {out_path.resolve()}[/bold green]")
 
-    for v in report.vulnerabilities[:10]:
-        sev_style = {
-            "Critical": "[bold red]極高[/bold red]",
-            "High": "[red]高[/red]",
-            "Medium": "[yellow]中[/yellow]",
-            "Low": "[blue]低[/blue]",
-            "Info": "[dim]資訊[/dim]",
-        }.get(v.severity.value, v.severity.value)
-
-        display_title = v.title_zh or v.title
-        cve_str = ", ".join(v.cve_list[:2]) if v.cve_list else v.id
-
-        vuln_table.add_row(sev_style, display_title, cve_str, str(len(v.affected_hosts)))
-
-    console.print(vuln_table)
-    console.print(f"[green][V] 解析完成！共彙整 {len(report.vulnerabilities)} 個獨立弱點項。[/green]")
+    console.print(f"[green]✔ 作業完成！共彙整 {len(report.vulnerabilities)} 個獨立弱點項。[/green]")
 
 
 @main.command()
@@ -98,10 +88,10 @@ def parse(scan_file, output_format, output_file, language):
 @click.option("-o", "--output", "output_file", type=click.Path(), default="diff_report.docx", help="輸出比對報告路徑")
 def diff(baseline_file, rescan_file, output_file):
     """比對初掃 (Baseline) 與複掃 (Rescan) 結果，自動計算修復狀態 (Fixed / Open / New)。"""
-    console.print(Panel.fit(f"[bold cyan]VulnWeaver 複測比對任務[/bold cyan]\n初掃 (Baseline): {baseline_file}\n複掃 (Rescan): {rescan_file}", border_style="cyan"))
+    console.print(Panel.fit(f"[bold cyan]VulnWeaver 複測比對任務[/bold cyan]\n初掃 (Baseline): {baseline_file}\n複掃 (Rescan): {rescan_file}\n輸出目標: {output_file}", border_style="cyan"))
 
     parser = NessusParser()
-    with console.status("[bold green]正在解析並進行差異對比...[/bold green]"):
+    with console.status("[bold green]正在解析掃描檔案並進行差異比對...[/bold green]"):
         base_report = parser.parse(baseline_file)
         rescan_report = parser.parse(rescan_file)
         diff_report = VulnerabilityComparator.compare(base_report, rescan_report)
@@ -116,7 +106,14 @@ def diff(baseline_file, rescan_file, output_file):
     diff_table.add_row("[yellow]新發現 (New)[/yellow]", str(diff_report.new_count), "初掃未檢出，複測新發現風險")
 
     console.print(diff_table)
-    console.print(f"[green][V] 比對完成！總比對項目: {len(diff_report.items)} 項。[/green]")
+
+    # Generate diff Word document
+    with console.status(f"[bold green]正在生成複測對照 Word 文件 ({output_file})...[/bold green]"):
+        reporter = DocxReporter()
+        out_path = reporter.generate_diff(diff_report, output_file)
+        console.print(f"[bold green][V] 成功產出複測對照報告書: {out_path.resolve()}[/bold green]")
+
+    console.print(f"[green]✔ 比對完成！總比對項目: {len(diff_report.items)} 項。[/green]")
 
 
 if __name__ == "__main__":
