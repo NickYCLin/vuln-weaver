@@ -66,13 +66,13 @@ TW_VULN_KB = [
         "solution_zh": "於 HTTP 回應標頭設定 X-Frame-Options: SAMEORIGIN 或 DENY，或透過 Content-Security-Policy (CSP) frame-ancestors 限制授權嵌入之網域。",
     },
     {
-        "pattern": r"Content-Security-Policy|CSP Header Missing",
+        "pattern": r"Content[- ]Security[- ]Policy|CSP Header (?:Missing|Not Set)",
         "title_zh": "缺少 Content-Security-Policy (CSP) 內容安全政策標頭",
         "description_zh": "網站未配置 CSP 標頭以限制資源（腳本、圖片、樣式）加載來源，當系統存在 XSS 漏洞時，攻擊者將輕易載入惡意外部腳本竊取憑證。",
         "solution_zh": "規劃並佈署 Content-Security-Policy 回應標頭，限制 script-src、object-src 等資源載入來源為合法白名單。",
     },
     {
-        "pattern": r"Web Server Information Disclosure|Server Header|Apache Version",
+        "pattern": r"Web Server Information Disclosure|Server Header|Apache Version|Server Leaks (?:Version )?Information|X-Powered-By",
         "title_zh": "網頁伺服器回應標頭洩漏詳細版本資訊",
         "description_zh": "HTTP 回應標頭中之 Server 或 X-Powered-By 洩漏了詳細的軟體與版本資訊（如 Apache/2.4.41、PHP/7.4.3），有助於攻擊者鎖定已知 CVE 漏洞發動精準攻擊。",
         "solution_zh": "修改伺服器設定隱藏或自訂版本資訊。Nginx 請設定 server_tokens off; Apache 請設定 ServerTokens Prod 及 ServerSignature Off。",
@@ -114,6 +114,74 @@ TW_VULN_KB = [
         "title_zh": "SNMP 服務使用預設社群字串 (Default Public Community)",
         "description_zh": "SNMP 網路管理協定使用預設字串（如 public 或 private），外部攻擊者可讀取網路設備組態、路由表、甚至發送變更指令奪取設備控制權。",
         "solution_zh": "修改或移除預設的 public/private 社群名稱，改用複雜自訂字串，或全面升級至支援認證與加密的 SNMPv3 協定。",
+    },
+
+    # --- Web 應用程式弱點 (OWASP ZAP 常見告警) ---
+    {
+        "pattern": r"\bSQL Injection\b|\bSQLi\b",
+        "title_zh": "網站存在 SQL 資料隱碼攻擊 (SQL Injection) 弱點",
+        "description_zh": "應用程式將使用者輸入直接拼接至 SQL 查詢語句，攻擊者可構造特殊字串繞過驗證、讀取或竄改資料庫內容，嚴重時可取得資料庫伺服器控制權。",
+        "solution_zh": "所有資料庫存取一律改用參數化查詢（Prepared Statement）或 ORM，禁止字串拼接；同時對輸入做白名單驗證，並以最小權限帳號連線資料庫。",
+    },
+    {
+        "pattern": r"Cross[- ]Site Scripting|\bXSS\b",
+        "title_zh": "網站存在跨站腳本攻擊 (Cross-Site Scripting, XSS) 弱點",
+        "description_zh": "應用程式未對使用者輸入或輸出內容進行適當編碼，攻擊者可植入惡意 JavaScript，於其他使用者瀏覽器中執行，藉此竊取 Session、冒用身分或竄改頁面。",
+        "solution_zh": "依輸出位置（HTML、屬性、JavaScript、URL）對所有動態內容做對應的輸出編碼，搭配輸入驗證與 Content-Security-Policy 標頭降低影響範圍。",
+    },
+    {
+        "pattern": r"Path Traversal|Directory Traversal",
+        "title_zh": "網站存在路徑遍歷 (Path Traversal) 弱點",
+        "description_zh": "應用程式以使用者可控的參數組合檔案路徑，攻擊者可利用 ../ 等序列讀取網站根目錄以外的系統檔案，例如設定檔或帳密檔。",
+        "solution_zh": "不要以使用者輸入直接組成檔案路徑，改用索引或白名單對應實際檔案；若必須使用，需正規化路徑後確認仍位於允許的目錄內。",
+    },
+    {
+        "pattern": r"Command Injection",
+        "title_zh": "網站存在作業系統命令注入 (OS Command Injection) 弱點",
+        "description_zh": "應用程式將使用者輸入帶入系統指令執行，攻擊者可附加額外指令於伺服器上執行任意程式，直接取得主機控制權。",
+        "solution_zh": "避免以 shell 執行外部指令；若無法避免，改用不經 shell 的 API 並以參數陣列傳遞，同時對輸入做嚴格白名單驗證。",
+    },
+    {
+        "pattern": r"Cookie (?:Without|No) Secure Flag|Cookie Without Secure",
+        "title_zh": "Cookie 未設定 Secure 旗標",
+        "description_zh": "網站發送的 Cookie 未標示 Secure 屬性，瀏覽器可能透過未加密的 HTTP 連線送出該 Cookie，攻擊者可在網路上攔截 Session 識別碼。",
+        "solution_zh": "對所有 Cookie（特別是 Session Cookie）加上 Secure 屬性，並將網站全面導向 HTTPS。",
+    },
+    {
+        "pattern": r"Cookie (?:No|Without) HttpOnly",
+        "title_zh": "Cookie 未設定 HttpOnly 旗標",
+        "description_zh": "網站發送的 Cookie 未標示 HttpOnly 屬性，頁面上的 JavaScript 可直接讀取 Cookie 內容，一旦存在 XSS 弱點，攻擊者即可竊取 Session。",
+        "solution_zh": "對 Session 等不需由前端腳本存取的 Cookie 加上 HttpOnly 屬性，可於應用程式框架或 Web 伺服器層統一設定。",
+    },
+    {
+        "pattern": r"Cookie (?:without|No) SameSite",
+        "title_zh": "Cookie 未設定 SameSite 屬性",
+        "description_zh": "網站發送的 Cookie 未標示 SameSite 屬性，瀏覽器在跨站請求時仍會附帶該 Cookie，增加跨站請求偽造 (CSRF) 攻擊成功的機會。",
+        "solution_zh": "對所有 Cookie 設定 SameSite=Lax 或 SameSite=Strict；確實需要跨站使用的 Cookie 才設為 None，且必須同時加上 Secure。",
+    },
+    {
+        "pattern": r"Anti-CSRF Tokens|Cross[- ]Site Request Forgery|\bCSRF\b",
+        "title_zh": "表單缺少防跨站請求偽造 (CSRF) 權杖",
+        "description_zh": "網站表單未加入一次性的 Anti-CSRF Token，攻擊者可誘使已登入的使用者在不知情下送出偽造請求，代替使用者執行變更資料、轉帳等操作。",
+        "solution_zh": "為所有會變更狀態的表單與 API 加入不可預測的 CSRF Token 並於伺服器端驗證，或使用框架內建的 CSRF 防護機制，並搭配 SameSite Cookie。",
+    },
+    {
+        "pattern": r"Application Error Disclosure|Error Message Disclosure",
+        "title_zh": "應用程式錯誤訊息洩漏內部資訊",
+        "description_zh": "網站在發生錯誤時直接回傳程式堆疊、資料庫錯誤或框架版本等內部訊息，攻擊者可據此掌握系統架構並規劃後續攻擊。",
+        "solution_zh": "正式環境關閉除錯模式，統一以自訂錯誤頁面回應使用者，詳細錯誤只寫入伺服器端日誌。",
+    },
+    {
+        "pattern": r"Vulnerable JS Library|Vulnerable JavaScript Library",
+        "title_zh": "網站使用含已知弱點之前端 JavaScript 函式庫",
+        "description_zh": "網頁載入的 JavaScript 函式庫（如 jQuery、Bootstrap、AngularJS）版本過舊且已有公開的 CVE 弱點，攻擊者可利用這些已知問題發動 XSS 或原型汙染等攻擊。",
+        "solution_zh": "盤點前端相依函式庫並升級至官方仍維護且已修補的版本，並將相依套件納入定期更新流程。",
+    },
+    {
+        "pattern": r"Re-examine Cache-control|Cache-control Directives",
+        "title_zh": "敏感頁面未妥善設定 Cache-Control 快取控制標頭",
+        "description_zh": "網站回應未設定禁止快取的標頭，含個資或登入後內容的頁面可能被瀏覽器或中介代理伺服器暫存，在共用電腦上可被他人翻閱。",
+        "solution_zh": "對含敏感資料的回應設定 Cache-Control: no-cache, no-store, must-revalidate 與 Pragma: no-cache 標頭；靜態公開資源則可維持快取。",
     },
 
     # --- 重大與高風險 CVE 漏洞 ---
