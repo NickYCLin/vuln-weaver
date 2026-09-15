@@ -48,7 +48,7 @@ TW_VULN_KB = [
 
     # --- HTTP 安全標頭與 Web 基礎防禦 ---
     {
-        "pattern": r"HTTP Strict Transport Security|HSTS",
+        "pattern": r"Strict[- ]Transport[- ]Security|HSTS",
         "title_zh": "未啟用 HTTP 嚴格傳輸安全標頭 (Missing HSTS Header)",
         "description_zh": "網頁伺服器未於 HTTP 回應標頭中加入 Strict-Transport-Security，導致使用者可能透過不安全之 HTTP 連線存取網站，面臨中間人降級劫持風險。",
         "solution_zh": "於 Web 伺服器設定加入回應標頭：Strict-Transport-Security: max-age=31536000; includeSubDomains; preload，強制客戶端僅透過 HTTPS 存取。",
@@ -166,6 +166,12 @@ TW_VULN_KB = [
         "solution_zh": "為所有會變更狀態的表單與 API 加入不可預測的 CSRF Token 並於伺服器端驗證，或使用框架內建的 CSRF 防護機制，並搭配 SameSite Cookie。",
     },
     {
+        "pattern": r"Cleartext submission of password|Password submitted (?:over|using) (?:cleartext|HTTP)",
+        "title_zh": "登入表單以未加密的 HTTP 明文傳送密碼",
+        "description_zh": "網站的登入或密碼表單透過未加密的 HTTP 連線送出，位於同一網路路徑上的攻擊者可直接攔截帳號密碼。",
+        "solution_zh": "將登入頁與表單送出的目標網址全面改為 HTTPS，並在伺服器端把 HTTP 請求導向 HTTPS，搭配 HSTS 標頭防止降級。",
+    },
+    {
         "pattern": r"Application Error Disclosure|Error Message Disclosure",
         "title_zh": "應用程式錯誤訊息洩漏內部資訊",
         "description_zh": "網站在發生錯誤時直接回傳程式堆疊、資料庫錯誤或框架版本等內部訊息，攻擊者可據此掌握系統架構並規劃後續攻擊。",
@@ -178,7 +184,7 @@ TW_VULN_KB = [
         "solution_zh": "盤點前端相依函式庫並升級至官方仍維護且已修補的版本，並將相依套件納入定期更新流程。",
     },
     {
-        "pattern": r"Re-examine Cache-control|Cache-control Directives",
+        "pattern": r"Re-examine Cache-control|Cache-control Directives|Cacheable HTTPS response",
         "title_zh": "敏感頁面未妥善設定 Cache-Control 快取控制標頭",
         "description_zh": "網站回應未設定禁止快取的標頭，含個資或登入後內容的頁面可能被瀏覽器或中介代理伺服器暫存，在共用電腦上可被他人翻閱。",
         "solution_zh": "對含敏感資料的回應設定 Cache-Control: no-cache, no-store, must-revalidate 與 Pragma: no-cache 標頭；靜態公開資源則可維持快取。",

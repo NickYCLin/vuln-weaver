@@ -40,3 +40,14 @@ def test_xss_mention_in_csp_description_does_not_override_csp():
         "helps to detect and mitigate certain types of attacks, including Cross Site Scripting (XSS)",
     )
     assert "Content-Security-Policy" in finding["title_zh"]
+
+
+def test_burp_issue_names_are_localized():
+    hsts = enrich_vulnerability("Strict transport security not enforced")
+    assert "HSTS" in hsts["title_zh"]
+
+    cleartext = enrich_vulnerability("Cleartext submission of password")
+    assert cleartext["title_zh"] == "登入表單以未加密的 HTTP 明文傳送密碼"
+
+    cache = enrich_vulnerability("Cacheable HTTPS response")
+    assert "Cache-Control" in cache["title_zh"]
