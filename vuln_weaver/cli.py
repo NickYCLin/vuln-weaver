@@ -1,4 +1,5 @@
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 import click
 from rich.console import Console
@@ -7,6 +8,7 @@ from rich.panel import Panel
 
 from vuln_weaver import __version__
 from vuln_weaver.parsers.nessus import NessusParser
+from vuln_weaver.parsers.nmap import NmapParser
 from vuln_weaver.reporters.docx_reporter import DocxReporter
 from vuln_weaver.comparator.diff import VulnerabilityComparator
 
@@ -21,6 +23,16 @@ if sys.platform == "win32":
 console = Console()
 
 
+def get_parser_for_file(file_path: Path):
+    suffix = file_path.suffix.lower()
+    if suffix == ".nessus":
+        return NessusParser()
+    elif suffix == ".xml":
+        return NmapParser()
+    else:
+        return None
+
+
 @click.group()
 @click.version_option(__version__, prog_name="VulnWeaver")
 def main():
@@ -30,23 +42,23 @@ def main():
 
 @main.command()
 @click.argument("scan_file", type=click.Path(exists=True))
-@click.option("-f", "--format", "output_format", type=click.Choice(["docx", "json", "html"]), default="docx", help="輸出格式")
+@click.option("-f", "--format", "output_format", type=click.Choice(["docx", "json"]), default="docx", help="輸出格式")
 @click.option("-o", "--output", "output_file", type=click.Path(), default="report.docx", help="輸出檔案路徑")
 @click.option("-l", "--lang", "language", type=click.Choice(["zh-TW", "en"]), default="zh-TW", help="報告語言")
 def parse(scan_file, output_format, output_file, language):
-    """解析弱點掃描檔案並生成標準報告。"""
+    """解析弱點掃描檔案 (Nessus / Nmap) 並生成標準報告。"""
     file_path = Path(scan_file)
     console.print(Panel.fit(f"[bold cyan]VulnWeaver 解析任務[/bold cyan]\n檔案: {file_path.name}\n輸出目標: {output_file} ({output_format.upper()})", border_style="cyan"))
 
-    # Determine parser
-    if file_path.suffix.lower() == ".nessus":
-        parser = NessusParser()
-    else:
-        console.print(f"[bold red][X] 目前副檔名 {file_path.suffix} 尚不支援，請使用 .nessus 檔案。[/bold red]")
-        return
+    parser = get_parser_for_file(file_path)
+    if not parser:
+        raise click.ClickException(f"目前副檔名 {file_path.suffix} 尚不支援，請使用 .nessus 或 .xml (Nmap) 檔案。")
 
-    with console.status("[bold green]正在解析掃描檔案並對齊繁體中文知識庫...[/bold green]"):
-        report = parser.parse(file_path)
+    with console.status(f"[bold green]正在使用 {parser.scanner_name.upper()} 解析器處理並對齊繁體中文知識庫...[/bold green]"):
+        try:
+            report = parser.parse(file_path)
+        except (ValueError, ET.ParseError) as exc:
+            raise click.ClickException(f"掃描檔解析失敗：{exc}") from exc
 
     # Display summary
     stats = report.summary_stats
@@ -88,12 +100,23 @@ def parse(scan_file, output_format, output_file, language):
 @click.option("-o", "--output", "output_file", type=click.Path(), default="diff_report.docx", help="輸出比對報告路徑")
 def diff(baseline_file, rescan_file, output_file):
     """比對初掃 (Baseline) 與複掃 (Rescan) 結果，自動計算修復狀態 (Fixed / Open / New)。"""
-    console.print(Panel.fit(f"[bold cyan]VulnWeaver 複測比對任務[/bold cyan]\n初掃 (Baseline): {baseline_file}\n複掃 (Rescan): {rescan_file}\n輸出目標: {output_file}", border_style="cyan"))
+    base_path = Path(baseline_file)
+    rescan_path = Path(rescan_file)
 
-    parser = NessusParser()
+    console.print(Panel.fit(f"[bold cyan]VulnWeaver 複測比對任務[/bold cyan]\n初掃 (Baseline): {base_path.name}\n複掃 (Rescan): {rescan_path.name}\n輸出目標: {output_file}", border_style="cyan"))
+
+    base_parser = get_parser_for_file(base_path)
+    rescan_parser = get_parser_for_file(rescan_path)
+
+    if not base_parser or not rescan_parser:
+        raise click.ClickException("比對檔案格式不支援，請使用 .nessus 或 .xml 檔案。")
+
     with console.status("[bold green]正在解析掃描檔案並進行差異比對...[/bold green]"):
-        base_report = parser.parse(baseline_file)
-        rescan_report = parser.parse(rescan_file)
+        try:
+            base_report = base_parser.parse(base_path)
+            rescan_report = rescan_parser.parse(rescan_path)
+        except (ValueError, ET.ParseError) as exc:
+            raise click.ClickException(f"掃描檔解析失敗：{exc}") from exc
         diff_report = VulnerabilityComparator.compare(base_report, rescan_report)
 
     diff_table = Table(title="複測比對成效統計")
