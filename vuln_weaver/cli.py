@@ -16,6 +16,7 @@ from vuln_weaver.merger import merge_reports
 from vuln_weaver.models import ReportMeta
 from vuln_weaver.reporters.docx_reporter import DocxReporter
 from vuln_weaver.reporters.template_reporter import TemplateReporter
+from vuln_weaver.reporters.xlsx_reporter import XlsxReporter
 from vuln_weaver.comparator.diff import VulnerabilityComparator
 
 # Ensure console supports UTF-8 on Windows
@@ -97,8 +98,21 @@ def build_meta(org, vendor, project_code, tester, reviewer, approver, extra_vars
     )
 
 
-def pick_reporter(template_file):
+def pick_reporter(output_format, template_file):
+    if output_format == "xlsx":
+        if template_file:
+            raise click.ClickException("--template 只適用於 Word (docx) 輸出，Excel 匯出沒有範本機制。")
+        return XlsxReporter()
     return TemplateReporter(template_path=template_file, diff_template_path=template_file) if template_file else DocxReporter()
+
+
+def resolve_output(output_file, output_format, default_stem):
+    """沒指定 -o 時依格式決定副檔名；有指定但副檔名不符時提醒。"""
+    if not output_file:
+        return f"{default_stem}.{output_format}"
+    if Path(output_file).suffix.lower() != f".{output_format}":
+        console.print(f"[yellow]提醒：輸出格式為 {output_format.upper()}，但檔名副檔名是 {Path(output_file).suffix or '（無）'}。[/yellow]")
+    return output_file
 
 
 @click.group()
@@ -123,8 +137,8 @@ def load_report(file_path: Path):
 
 @main.command()
 @click.argument("scan_files", nargs=-1, required=True, type=click.Path(exists=True, dir_okay=False))
-@click.option("-f", "--format", "output_format", type=click.Choice(["docx", "json"]), default="docx", help="輸出格式")
-@click.option("-o", "--output", "output_file", type=click.Path(), default="report.docx", help="輸出檔案路徑")
+@click.option("-f", "--format", "output_format", type=click.Choice(["docx", "xlsx", "json"]), default="docx", help="輸出格式")
+@click.option("-o", "--output", "output_file", type=click.Path(), default=None, help="輸出檔案路徑（預設 report.<格式>）")
 @click.option("-l", "--lang", "language", type=click.Choice(["zh-TW", "en"]), default="zh-TW", help="報告語言")
 @click.option("-n", "--scan-name", "scan_name", default=None, help="報告上的專案標的名稱；合併多檔時建議指定")
 @report_meta_options
@@ -132,6 +146,7 @@ def parse(scan_files, output_format, output_file, language, scan_name, template_
           org, vendor, project_code, tester, reviewer, approver, extra_vars):
     """解析一或多份掃描檔 (Nessus / Nmap / OWASP ZAP / Burp Suite)，合併後生成標準報告。"""
     file_paths = [Path(f) for f in scan_files]
+    output_file = resolve_output(output_file, output_format, "report")
     file_list = "\n".join(f"檔案: {p.name}" for p in file_paths)
     console.print(Panel.fit(f"[bold cyan]VulnWeaver 解析任務[/bold cyan]\n{file_list}\n輸出目標: {output_file} ({output_format.upper()})", border_style="cyan"))
 
@@ -165,13 +180,13 @@ def parse(scan_files, output_format, output_file, language, scan_name, template_
     )
     console.print(table)
 
-    # Generate document if docx format requested
-    if output_format == "docx":
+    if output_format in ("docx", "xlsx"):
         meta = build_meta(org, vendor, project_code, tester, reviewer, approver, extra_vars)
-        with console.status(f"[bold green]正在生成 Word 報告文件 ({output_file})...[/bold green]"):
-            reporter = pick_reporter(template_file)
+        reporter = pick_reporter(output_format, template_file)
+        label = "Word 報告書" if output_format == "docx" else "Excel 弱點清冊"
+        with console.status(f"[bold green]正在生成{label} ({output_file})...[/bold green]"):
             out_path = reporter.generate(report, output_file, meta=meta)
-            console.print(f"[bold green][V] 成功產出專業 Word 報告書: {out_path.resolve()}[/bold green]")
+            console.print(f"[bold green][V] 成功產出{label}: {out_path.resolve()}[/bold green]")
     elif output_format == "json":
         out_path = Path(output_file)
         out_path.write_text(report.model_dump_json(indent=2), encoding="utf-8")
@@ -183,13 +198,15 @@ def parse(scan_files, output_format, output_file, language, scan_name, template_
 @main.command()
 @click.argument("baseline_file", type=click.Path(exists=True))
 @click.argument("rescan_file", type=click.Path(exists=True))
-@click.option("-o", "--output", "output_file", type=click.Path(), default="diff_report.docx", help="輸出比對報告路徑")
+@click.option("-f", "--format", "output_format", type=click.Choice(["docx", "xlsx"]), default="docx", help="輸出格式")
+@click.option("-o", "--output", "output_file", type=click.Path(), default=None, help="輸出比對報告路徑（預設 diff_report.<格式>）")
 @report_meta_options
-def diff(baseline_file, rescan_file, output_file, template_file,
+def diff(baseline_file, rescan_file, output_format, output_file, template_file,
          org, vendor, project_code, tester, reviewer, approver, extra_vars):
     """比對初掃 (Baseline) 與複掃 (Rescan) 結果，自動計算修復狀態 (Fixed / Open / New)。"""
     base_path = Path(baseline_file)
     rescan_path = Path(rescan_file)
+    output_file = resolve_output(output_file, output_format, "diff_report")
 
     console.print(Panel.fit(f"[bold cyan]VulnWeaver 複測比對任務[/bold cyan]\n初掃 (Baseline): {base_path.name}\n複掃 (Rescan): {rescan_path.name}\n輸出目標: {output_file}", border_style="cyan"))
 
@@ -212,12 +229,12 @@ def diff(baseline_file, rescan_file, output_file, template_file,
 
     console.print(diff_table)
 
-    # Generate diff Word document
     meta = build_meta(org, vendor, project_code, tester, reviewer, approver, extra_vars)
-    with console.status(f"[bold green]正在生成複測對照 Word 文件 ({output_file})...[/bold green]"):
-        reporter = pick_reporter(template_file)
+    reporter = pick_reporter(output_format, template_file)
+    label = "複測對照報告書" if output_format == "docx" else "複測列管表 (Excel)"
+    with console.status(f"[bold green]正在生成{label} ({output_file})...[/bold green]"):
         out_path = reporter.generate_diff(diff_report, output_file, meta=meta)
-        console.print(f"[bold green][V] 成功產出複測對照報告書: {out_path.resolve()}[/bold green]")
+        console.print(f"[bold green][V] 成功產出{label}: {out_path.resolve()}[/bold green]")
 
     console.print(f"[green]✔ 比對完成！總比對項目: {len(diff_report.items)} 項。[/green]")
 

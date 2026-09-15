@@ -7,7 +7,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.10%2B-blue?style=flat-square&logo=python" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License MIT">
-  <img src="https://img.shields.io/badge/Format-Word%20(.docx)%20%7C%20JSON-orange?style=flat-square" alt="Format">
+  <img src="https://img.shields.io/badge/Format-Word%20(.docx)%20%7C%20Excel%20(.xlsx)%20%7C%20JSON-orange?style=flat-square" alt="Format">
   <img src="https://img.shields.io/badge/Status-Active%20Development-brightgreen?style=flat-square" alt="Status">
 </p>
 
@@ -49,6 +49,9 @@
 - **📝 Word (.docx) 報告**
   - 預設由 `python-docx` 產生標準報告，封面可帶入受測單位、執行單位與案號，結尾附執行／審核／核定三欄簽章表。
   - 加上 `--template` 即改用 `docxtpl` 套用你自己的 Word 範本，內建兩個預設範本可直接複製修改。
+- **📊 Excel (.xlsx) 弱點清冊與複測列管表**
+  - `-f xlsx` 匯出「摘要／主機清冊／弱點清冊／逐主機明細」四個工作表，逐主機明細每列一個主機×弱點，附修補狀態、負責單位、預計完成日等空欄給承辦人填。
+  - `diff -f xlsx` 匯出複測列管表，已修復／未修復／新發現以顏色區分，可直接篩選追蹤。
 - **📊 視覺化統計圖表**
   - 自動統計「極高、高、中、低、資訊」弱點分級，並將比例圖嵌入報告。
 
@@ -106,7 +109,8 @@ vuln-weaver/
 │   │   ├── base.py           # 抽象報表基類
 │   │   ├── charts.py         # 弱點等級分佈圖
 │   │   ├── docx_reporter.py  # python-docx 標準報表
-│   │   └── template_reporter.py  # docxtpl 自訂範本報表
+│   │   ├── template_reporter.py  # docxtpl 自訂範本報表
+│   │   └── xlsx_reporter.py  # Excel 弱點清冊與複測列管表
 │   └── templates/            # 內建 docxtpl 範本
 │       ├── default_tw.docx       # 單次掃描報告範本
 │       └── default_diff_tw.docx  # 複測比對報告範本
@@ -158,6 +162,9 @@ python -m vuln_weaver.cli parse sample.nessus -f docx -o report.docx
 # 解析 Nmap -oX 輸出的 XML，將主機與檢出項目匯出為 JSON
 python -m vuln_weaver.cli parse sample.xml -f json -o report.json
 
+# 匯出 Excel 弱點清冊（沒給 -o 時預設為 report.xlsx）
+python -m vuln_weaver.cli parse sample.nessus -f xlsx
+
 # 解析 OWASP ZAP 匯出的傳統 XML 或 JSON 報告
 python -m vuln_weaver.cli parse zap_report.xml -f docx -o web_report.docx
 python -m vuln_weaver.cli parse zap_report.json -f docx -o web_report.docx
@@ -177,6 +184,9 @@ python -m vuln_weaver.cli diff baseline.json rescan.json -o diff_report.docx
 ```bash
 # 比對兩次掃描結果，自動標記 Fixed / Open / New
 python -m vuln_weaver.cli diff baseline.nessus rescan.nessus -o diff_report.docx
+
+# 複測列管表改出 Excel
+python -m vuln_weaver.cli diff baseline.nessus rescan.nessus -f xlsx -o tracking.xlsx
 ```
 
 比對會按「弱點 ID × 主機／服務」區分狀態；同一弱點在不同主機或通訊埠可同時出現已修復、未修復或新增。初掃和複掃須來自同一掃描器、涵蓋相同主機；否則程式會拒絕產出「已修復」結論。請另外確認兩次掃描使用相同的通訊埠、服務與腳本設定，目前程式尚無法自動核對掃描設定。
@@ -230,7 +240,7 @@ python -m vuln_weaver.cli diff baseline.nessus rescan.nessus -o diff.docx -t my_
 - [x] **Milestone 9**: `docxtpl` 自訂 Word 範本、封面單位資訊與審核簽章欄位。
 - [x] **Milestone 10**: 支援 Burp Suite 匯出報告（CLI 與 Web Lite）。
 - [x] **Milestone 11**: 多份掃描結果合併成一份報告，JSON 可回讀做複測比對。
-- [ ] **Milestone 12**: Excel (.xlsx) 匯出弱點清冊與複測列管表。
+- [x] **Milestone 12**: Excel (.xlsx) 匯出弱點清冊與複測列管表。
 - [ ] **Milestone 13**: GitHub Actions CI 與 pip 安裝後的 `vuln-weaver` 指令驗證。
 
 ---
