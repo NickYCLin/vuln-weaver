@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VulnWeaver Web Lite — 弱點掃描報告整合與複測比對</title>
+  <meta name="description" content="VulnWeaver 是一款專為資安健診與標案設計的弱點報告自動化工具。100% 瀏覽器本地運算，不需上傳伺服器即可將 Nessus 掃描檔一鍵轉換為標準 Word 報告。">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🕸️</text></svg>">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- docx CDN for client-side Word generation -->
+  <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f7ff',
+              500: '#0284c7',
+              600: '#0369a1',
+              900: '#0c4a6e',
+            },
+            severity: {
+              critical: '#dc2626',
+              high: '#ea580c',
+              medium: '#eab308',
+              low: '#0284c7',
+              info: '#64748b'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap');
+    body {
+      font-family: 'Noto Sans TC', sans-serif;
+    }
+    code, pre {
+      font-family: 'JetBrains Mono', monospace;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+
+  <!-- Navigation Header -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <span class="text-2xl">🕸️</span>
+        <div>
+          <span class="font-bold text-lg tracking-wider text-white">VulnWeaver</span>
+          <span class="text-xs bg-sky-500/20 text-sky-400 border border-sky-500/30 px-2 py-0.5 rounded-full ml-2">Web Lite</span>
+        </div>
+      </div>
+      
+      <div class="flex items-center space-x-4 text-sm">
+        <span class="hidden sm:inline-flex items-center text-emerald-400 text-xs bg-emerald-950/60 border border-emerald-800/60 px-3 py-1 rounded-full">
+          <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+          100% 瀏覽器本地離線解析 (零資料外洩)
+        </span>
+        <a href="https://github.com/NickYCLin/vuln-weaver" target="_blank" class="text-slate-400 hover:text-white flex items-center transition">
+          <svg class="w-5 h-5 mr-1" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"></path></svg>
+          GitHub
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero & Mode Switcher -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="text-center max-w-3xl mx-auto mb-8">
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight mb-3">
+        弱點掃描報表整合與複測比對引擎
+      </h1>
+      <p class="text-slate-400 text-sm sm:text-base leading-relaxed">
+        將 Nessus 掃描結果自動去重聚合、比對繁體中文知識庫，並一鍵匯出符合台灣公部門與 ISMS 規範的專業 Word 交付報告書。
+      </p>
+
+      <!-- Mode Tabs -->
+      <div class="inline-flex p-1 bg-slate-900 border border-slate-800 rounded-xl mt-6">
+        <button id="tab-single" onclick="switchMode('single')" class="px-5 py-2 text-sm font-medium rounded-lg bg-sky-600 text-white shadow-sm transition">
+          📄 單次掃描報告產出
+        </button>
+        <button id="tab-diff" onclick="switchMode('diff')" class="px-5 py-2 text-sm font-medium rounded-lg text-slate-400 hover:text-white transition">
+          🔄 初掃 vs 複測差異比對
+        </button>
+      </div>
+    </div>
+
+    <!-- Drop Zone Section (Single Mode) -->
+    <div id="section-single" class="max-w-2xl mx-auto">
+      <div id="drop-zone" class="border-2 border-dashed border-slate-700 hover:border-sky-500 bg-slate-900/60 hover:bg-slate-900 rounded-2xl p-8 text-center cursor-pointer transition">
+        <input type="file" id="file-input" accept=".nessus" class="hidden">
+        <div class="w-16 h-16 bg-sky-950 text-sky-400 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-sky-800/50">
+          <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+        </div>
+        <h3 class="text-base font-semibold text-white mb-1">拖曳或點擊上傳 .nessus 掃描檔案</h3>
+        <p class="text-xs text-slate-400 mb-4">支援 Tenable Nessus v2 XML 格式；完全於瀏覽器記憶體內解析，檔案絕不離線。</p>
+        <button type="button" onclick="document.getElementById('file-input').click()" class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-sm font-medium transition shadow">
+          選擇檔案
+        </button>
+      </div>
+    </div>
+
+    <!-- Drop Zone Section (Diff Mode) -->
+    <div id="section-diff" class="max-w-4xl mx-auto hidden">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Baseline File -->
+        <div id="drop-zone-base" class="border-2 border-dashed border-slate-700 hover:border-sky-500 bg-slate-900/60 rounded-2xl p-6 text-center cursor-pointer transition">
+          <input type="file" id="file-base" accept=".nessus" class="hidden">
+          <span class="text-xs font-bold text-sky-400 bg-sky-950 border border-sky-800 px-2 py-0.5 rounded">步驟 1</span>
+          <h4 class="text-sm font-semibold text-white mt-2 mb-1">上傳初測掃描 (Baseline .nessus)</h4>
+          <p id="label-base" class="text-xs text-slate-400">點擊或拖入第一次檢測檔案</p>
+        </div>
+        <!-- Rescan File -->
+        <div id="drop-zone-rescan" class="border-2 border-dashed border-slate-700 hover:border-emerald-500 bg-slate-900/60 rounded-2xl p-6 text-center cursor-pointer transition">
+          <input type="file" id="file-rescan" accept=".nessus" class="hidden">
+          <span class="text-xs font-bold text-emerald-400 bg-emerald-950 border border-emerald-800 px-2 py-0.5 rounded">步驟 2</span>
+          <h4 class="text-sm font-semibold text-white mt-2 mb-1">上傳改善複測 (Rescan .nessus)</h4>
+          <p id="label-rescan" class="text-xs text-slate-400">點擊或拖入改善後複掃檔案</p>
+        </div>
+      </div>
+      <div class="text-center mt-6">
+        <button id="btn-run-diff" onclick="executeDiffComparison()" disabled class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 text-white font-medium rounded-xl text-sm transition shadow-lg">
+          開始進行差異比對
+        </button>
+      </div>
+    </div>
+
+    <!-- Results Section (Initially Hidden) -->
+    <div id="result-container" class="mt-10 hidden space-y-8">
+      
+      <!-- Top Stats & Export Action Bar -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+        <div>
+          <span class="text-xs text-slate-400 block mb-1">目前載入專案標的</span>
+          <h2 id="res-scan-name" class="text-xl font-bold text-white">專案報告</h2>
+          <span id="res-host-count" class="text-xs text-slate-400 mt-1 inline-block">共檢測 0 台主機</span>
+        </div>
+
+        <!-- Export Buttons -->
+        <div class="flex items-center space-x-3 w-full md:w-auto">
+          <button id="btn-export-docx" onclick="exportWordReport()" class="flex-1 md:flex-initial inline-flex items-center justify-center px-5 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-medium rounded-xl text-sm transition shadow-lg shadow-sky-900/20">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+            匯出公部門標準 Word (.docx) 報告
+          </button>
+        </div>
+      </div>
+
+      <!-- Overview Cards & Chart Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Severity Badges Grid -->
+        <div class="lg:col-span-2 grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div class="bg-slate-900/80 border border-red-900/40 rounded-xl p-4 text-center">
+            <span class="text-xs text-red-400 font-medium">極高 (Critical)</span>
+            <div id="stat-critical" class="text-2xl font-bold text-red-500 mt-1">0</div>
+          </div>
+          <div class="bg-slate-900/80 border border-orange-900/40 rounded-xl p-4 text-center">
+            <span class="text-xs text-orange-400 font-medium">高 (High)</span>
+            <div id="stat-high" class="text-2xl font-bold text-orange-500 mt-1">0</div>
+          </div>
+          <div class="bg-slate-900/80 border border-yellow-900/40 rounded-xl p-4 text-center">
+            <span class="text-xs text-yellow-400 font-medium">中 (Medium)</span>
+            <div id="stat-medium" class="text-2xl font-bold text-yellow-500 mt-1">0</div>
+          </div>
+          <div class="bg-slate-900/80 border border-sky-900/40 rounded-xl p-4 text-center">
+            <span class="text-xs text-sky-400 font-medium">低 (Low)</span>
+            <div id="stat-low" class="text-2xl font-bold text-sky-400 mt-1">0</div>
+          </div>
+          <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 text-center col-span-2 sm:col-span-1">
+            <span class="text-xs text-slate-400 font-medium">資訊 (Info)</span>
+            <div id="stat-info" class="text-2xl font-bold text-slate-400 mt-1">0</div>
+          </div>
+        </div>
+
+        <!-- Donut Chart -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-center">
+          <div class="w-48 h-48">
+            <canvas id="chart-severity"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vulnerability List Table -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+        <div class="p-5 border-b border-slate-800 flex justify-between items-center">
+          <h3 class="font-bold text-base text-white">檢出弱點清單 (自動對應繁中修復指引)</h3>
+          <span id="res-vuln-count" class="text-xs text-slate-400">共 0 項</span>
+        </div>
+        
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-slate-950/80 text-xs text-slate-400 uppercase border-b border-slate-800">
+              <tr>
+                <th class="px-6 py-3 w-28 text-center">等級</th>
+                <th class="px-6 py-3">弱點項目名稱 (繁體中文 / 英文原名)</th>
+                <th class="px-6 py-3 w-36">CVE / 編號</th>
+                <th class="px-6 py-3 w-32 text-center">受影響主機</th>
+              </tr>
+            </thead>
+            <tbody id="vuln-table-body" class="divide-y divide-slate-800/60">
+              <!-- Rendered via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-800 bg-slate-950 py-6 text-center text-xs text-slate-500">
+    <p>VulnWeaver © 2026 Nick Lin. Released under the MIT License.</p>
+    <p class="mt-1">所有數據解析純屬本機記憶體端運算，無任何後端傳輸。</p>
+  </footer>
+
+  <!-- Application Logic -->
+  <script>
+    // Traditional Chinese Knowledge Base Dictionary
+    const TW_KB = [
+      { pattern: /SSL Version 2 and 3 Protocol Detection|SSLv2|SSLv3/i, titleZh: '伺服器支援不安全的 SSLv2 / SSLv3 通訊協定', solutionZh: '停用所有 SSLv2 及 SSLv3 通訊協定，伺服器僅保留 TLS 1.2 及 TLS 1.3 協定支援。' },
+      { pattern: /TLS Version 1\.0 Protocol Detection|TLSv1\.0/i, titleZh: '伺服器支援過期之 TLS 1.0 通訊協定', solutionZh: '於伺服器或負載平衡器停用 TLS 1.0，建議僅啟用 TLS 1.2 及 TLS 1.3。' },
+      { pattern: /TLS Version 1\.1 Protocol Detection|TLSv1\.1/i, titleZh: '伺服器支援過期之 TLS 1.1 通訊協定', solutionZh: '於伺服器組態中禁用 TLS 1.1，將傳輸加密門檻提升至 TLS 1.2/1.3。' },
+      { pattern: /Sweet32|Birthday attacks on 64-bit block ciphers|DES|3DES/i, titleZh: 'SSL/TLS 支援 64 位元區塊加密演算法 (Sweet32 弱點)', solutionZh: '移除 3DES/DES 加密套件，改用 AES-GCM 或 ChaCha20-Poly1305。' },
+      { pattern: /RC4/i, titleZh: 'SSL/TLS 支援已被破解之 RC4 串流加密演算法', solutionZh: '徹底自密碼組設定中移除所有包含 RC4 的加密演算法。' },
+      { pattern: /HTTP Strict Transport Security|HSTS/i, titleZh: '未啟用 HTTP 嚴格傳輸安全標頭 (Missing HSTS Header)', solutionZh: '增加回應標頭：Strict-Transport-Security: max-age=31536000; includeSubDomains。' },
+      { pattern: /X-Content-Type-Options|MIME-sniffing/i, titleZh: '缺少 X-Content-Type-Options 安全標頭', solutionZh: '增加全域 HTTP 標頭：X-Content-Type-Options: nosniff。' },
+      { pattern: /X-Frame-Options|Clickjacking/i, titleZh: '缺少 X-Frame-Options 安全標頭 (點擊劫持風險)', solutionZh: '設定 HTTP 回應標頭 X-Frame-Options: SAMEORIGIN 或 DENY。' },
+      { pattern: /Web Server Information Disclosure|Server Header/i, titleZh: '網頁伺服器回應標頭洩漏詳細版本資訊', solutionZh: '設定 server_tokens off (Nginx) 或 ServerTokens Prod (Apache) 隱藏版本資訊。' },
+      { pattern: /SSH Weak MAC Algorithms|SSH Weak KEX/i, titleZh: 'SSH 服務支援不安全的金鑰交換或 MAC 雜湊演算法', solutionZh: '編輯 sshd_config 移除 SHA1、MD5 等舊版演算法，保留強健密碼學演算法。' },
+      { pattern: /Self-Signed Certificate|Untrusted Root/i, titleZh: 'SSL/TLS 憑證使用自簽憑證或未獲信任之發證單位', solutionZh: '向合格之憑證機構 (CA) 申請正式數位憑證並定期排程巡檢效期。' }
+    ];
+
+    let currentParsedData = null;
+    let severityChart = null;
+    let baselineData = null;
+    let rescanData = null;
+
+    // Mode Switcher
+    function switchMode(mode) {
+      const isSingle = mode === 'single';
+      document.getElementById('section-single').classList.toggle('hidden', !isSingle);
+      document.getElementById('section-diff').classList.toggle('hidden', isSingle);
+      document.getElementById('tab-single').className = isSingle 
+        ? 'px-5 py-2 text-sm font-medium rounded-lg bg-sky-600 text-white shadow-sm transition'
+        : 'px-5 py-2 text-sm font-medium rounded-lg text-slate-400 hover:text-white transition';
+      document.getElementById('tab-diff').className = !isSingle
+        ? 'px-5 py-2 text-sm font-medium rounded-lg bg-emerald-600 text-white shadow-sm transition'
+        : 'px-5 py-2 text-sm font-medium rounded-lg text-slate-400 hover:text-white transition';
+    }
+
+    // Drag and Drop setup
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-sky-500'); });
+    dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('border-sky-500'); });
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('border-sky-500');
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length) handleFile(e.target.files[0]);
+    });
+
+    // Diff Drag and Drop Setup
+    setupDiffDropZone('drop-zone-base', 'file-base', (f) => {
+      handleDiffFile(f, true);
+    });
+    setupDiffDropZone('drop-zone-rescan', 'file-rescan', (f) => {
+      handleDiffFile(f, false);
+    });
+
+    function setupDiffDropZone(zoneId, inputId, onFile) {
+      const z = document.getElementById(zoneId);
+      const inp = document.getElementById(inputId);
+      z.addEventListener('click', () => inp.click());
+      z.addEventListener('dragover', (e) => { e.preventDefault(); z.classList.add('border-sky-400'); });
+      z.addEventListener('dragleave', () => z.classList.remove('border-sky-400'));
+      z.addEventListener('drop', (e) => {
+        e.preventDefault();
+        z.classList.remove('border-sky-400');
+        if (e.dataTransfer.files.length) onFile(e.dataTransfer.files[0]);
+      });
+      inp.addEventListener('change', (e) => {
+        if (e.target.files.length) onFile(e.target.files[0]);
+      });
+    }
+
+    function handleDiffFile(file, isBaseline) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const parsed = parseNessusXML(e.target.result);
+        if (isBaseline) {
+          baselineData = parsed;
+          document.getElementById('label-base').innerText = `已載入: ${file.name} (${parsed.vulns.length} 項弱點)`;
+          document.getElementById('label-base').classList.add('text-sky-400');
+        } else {
+          rescanData = parsed;
+          document.getElementById('label-rescan').innerText = `已載入: ${file.name} (${parsed.vulns.length} 項弱點)`;
+          document.getElementById('label-rescan').classList.add('text-emerald-400');
+        }
+        if (baselineData && rescanData) {
+          document.getElementById('btn-run-diff').disabled = false;
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function executeDiffComparison() {
+      if (!baselineData || !rescanData) return;
+      alert(`初測項次: ${baselineData.vulns.length}, 複測項次: ${rescanData.vulns.length}\n正在為您匯出複測差異比對 Word 報告...`);
+      exportDiffWordReport(baselineData, rescanData);
+    }
+
+    function handleFile(file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const xmlStr = e.target.result;
+        currentParsedData = parseNessusXML(xmlStr);
+        renderResults(currentParsedData);
+      };
+      reader.readAsText(file);
+    }
+
+    // Client-side Nessus XML Parser
+    function parseNessusXML(xmlContent) {
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(xmlContent, 'text/xml');
+      const reportElem = xmlDoc.querySelector('Report');
+      const scanName = reportElem ? (reportElem.getAttribute('name') || '弱點健診專案') : '弱點健診專案';
+
+      const hosts = [];
+      const vulnMap = new Map();
+
+      const hostNodes = xmlDoc.querySelectorAll('ReportHost');
+      hostNodes.forEach((h) => {
+        const hostIpTag = h.querySelector('tag[name="host-ip"]');
+        const hostIp = hostIpTag ? hostIpTag.textContent.trim() : (h.getAttribute('name') || 'Unknown');
+        const fqdnTag = h.querySelector('tag[name="host-fqdn"]');
+        const fqdn = fqdnTag ? fqdnTag.textContent.trim() : '-';
+        const osTag = h.querySelector('tag[name="operating-system"]');
+        const os = osTag ? osTag.textContent.trim() : '未識別';
+
+        const openPorts = new Set();
+
+        h.querySelectorAll('ReportItem').forEach((item) => {
+          const pluginID = item.getAttribute('pluginID');
+          const pluginName = item.getAttribute('pluginName') || '';
+          const port = parseInt(item.getAttribute('port') || '0', 10);
+          const protocol = item.getAttribute('protocol') || 'tcp';
+          const sevLevel = parseInt(item.getAttribute('severity') || '0', 10);
+
+          if (port > 0) openPorts.add(port);
+
+          const cves = Array.from(item.querySelectorAll('cve')).map(c => c.textContent.trim());
+          const desc = (item.querySelector('description')?.textContent || '').trim();
+          const solution = (item.querySelector('solution')?.textContent || '').trim();
+
+          const targetStr = port > 0 ? `${hostIp}:${port}/${protocol}` : hostIp;
+
+          if (vulnMap.has(pluginID)) {
+            const existing = vulnMap.get(pluginID);
+            if (!existing.affectedHosts.includes(targetStr)) {
+              existing.affectedHosts.push(targetStr);
+            }
+          } else {
+            // Match with TW KB
+            let titleZh = null;
+            let solZh = null;
+            for (const rule of TW_KB) {
+              if (rule.pattern.test(`${pluginName} ${desc}`)) {
+                titleZh = rule.titleZh;
+                solZh = rule.solutionZh;
+                break;
+              }
+            }
+
+            vulnMap.set(pluginID, {
+              id: pluginID,
+              title: pluginName,
+              titleZh: titleZh,
+              severity: mapSeverity(sevLevel),
+              severityRank: sevLevel,
+              cves: cves,
+              affectedHosts: [targetStr],
+              description: desc,
+              solution: solution,
+              solutionZh: solZh
+            });
+          }
+        });
+
+        hosts.push({ ip: hostIp, fqdn, os, openPorts: Array.from(openPorts).sort((a,b)=>a-b) });
+      });
+
+      const vulns = Array.from(vulnMap.values()).sort((a, b) => b.severityRank - a.severityRank);
+
+      const stats = { Critical: 0, High: 0, Medium: 0, Low: 0, Info: 0 };
+      vulns.forEach(v => { stats[v.severity]++; });
+
+      return { scanName, hosts, vulns, stats };
+    }
+
+    function mapSeverity(level) {
+      switch(level) {
+        case 4: return 'Critical';
+        case 3: return 'High';
+        case 2: return 'Medium';
+        case 1: return 'Low';
+        default: return 'Info';
+      }
+    }
+
+    function renderResults(data) {
+      document.getElementById('result-container').classList.remove('hidden');
+      document.getElementById('res-scan-name').innerText = data.scanName;
+      document.getElementById('res-host-count').innerText = `受檢測目標主機：${data.hosts.length} 台`;
+      document.getElementById('res-vuln-count').innerText = `共彙整 ${data.vulns.length} 項獨立弱點`;
+
+      // Stat cards
+      document.getElementById('stat-critical').innerText = data.stats.Critical;
+      document.getElementById('stat-high').innerText = data.stats.High;
+      document.getElementById('stat-medium').innerText = data.stats.Medium;
+      document.getElementById('stat-low').innerText = data.stats.Low;
+      document.getElementById('stat-info').innerText = data.stats.Info;
+
+      // Table Render
+      const tbody = document.getElementById('vuln-table-body');
+      tbody.innerHTML = '';
+      data.vulns.forEach((v) => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-800/40 transition';
+
+        const badgeColors = {
+          Critical: 'bg-red-500/20 text-red-400 border-red-500/30',
+          High: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+          Medium: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+          Low: 'bg-sky-500/20 text-sky-400 border-sky-500/30',
+          Info: 'bg-slate-700/30 text-slate-400 border-slate-700'
+        }[v.severity];
+
+        const zhBadge = { Critical: '極高', High: '高', Medium: '中', Low: '低', Info: '資訊' }[v.severity];
+        const displayTitle = v.titleZh ? `${v.titleZh}<span class="block text-xs text-slate-400 mt-0.5">${v.title}</span>` : v.title;
+        const cveStr = v.cves.length ? v.cves.slice(0, 2).join(', ') : `#${v.id}`;
+
+        tr.innerHTML = `
+          <td class="px-6 py-4 text-center">
+            <span class="px-2.5 py-1 text-xs font-semibold rounded-full border ${badgeColors}">${zhBadge}</span>
+          </td>
+          <td class="px-6 py-4 font-medium text-white">${displayTitle}</td>
+          <td class="px-6 py-4 font-mono text-xs text-sky-400">${cveStr}</td>
+          <td class="px-6 py-4 text-center text-xs text-slate-300">${v.affectedHosts.length} 台</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      renderChart(data.stats);
+      document.getElementById('result-container').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function renderChart(stats) {
+      const ctx = document.getElementById('chart-severity').getContext('2d');
+      if (severityChart) severityChart.destroy();
+
+      severityChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['極高', '高', '中', '低', '資訊'],
+          datasets: [{
+            data: [stats.Critical, stats.High, stats.Medium, stats.Low, stats.Info],
+            backgroundColor: ['#dc2626', '#ea580c', '#eab308', '#0284c7', '#64748b'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          plugins: { legend: { display: false } },
+          cutout: '70%',
+          responsive: true,
+          maintainAspectRatio: false
+        }
+      });
+    }
+
+    // Client-side Word (.docx) Generator via docx UMD
+    async function exportWordReport() {
+      if (!currentParsedData) return;
+      const { Document, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, Packer } = docx;
+
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: [
+            // Title
+            new Paragraph({
+              text: "資訊系統弱點掃描與安全健診報告書",
+              heading: HeadingLevel.TITLE,
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 200, after: 100 }
+            }),
+            new Paragraph({
+              text: `專案標的：${currentParsedData.scanName}`,
+              alignment: AlignmentType.CENTER,
+              spacing: { after: 300 }
+            }),
+            new Paragraph({
+              text: "壹、 檢測概況與分級統計",
+              heading: HeadingLevel.HEADING_1,
+              spacing: { before: 200, after: 100 }
+            }),
+            // Risk Table
+            new Table({
+              width: { size: 100, type: WidthType.PERCENTAGE },
+              rows: [
+                new TableRow({
+                  children: [
+                    new TableCell({ children: [new Paragraph({ text: "風險等級", style: "bold" })] }),
+                    new TableCell({ children: [new Paragraph({ text: "檢出數量", style: "bold" })] }),
+                    new TableCell({ children: [new Paragraph({ text: "修補時限建議", style: "bold" })] }),
+                  ]
+                }),
+                new TableRow({ children: [new TableCell({ children: [new Paragraph("極高 (Critical)")] }), new TableCell({ children: [new Paragraph(String(currentParsedData.stats.Critical))] }), new TableCell({ children: [new Paragraph("14 日內完成修補")] })] }),
+                new TableRow({ children: [new TableCell({ children: [new Paragraph("高 (High)")] }), new TableCell({ children: [new Paragraph(String(currentParsedData.stats.High))] }), new TableCell({ children: [new Paragraph("30 日內完成修補")] })] }),
+                new TableRow({ children: [new TableCell({ children: [new Paragraph("中 (Medium)")] }), new TableCell({ children: [new Paragraph(String(currentParsedData.stats.Medium))] }), new TableCell({ children: [new Paragraph("60 日內定期維護改善")] })] }),
+                new TableRow({ children: [new TableCell({ children: [new Paragraph("低 (Low)")] }), new TableCell({ children: [new Paragraph(String(currentParsedData.stats.Low))] }), new TableCell({ children: [new Paragraph("列入次期升級參考")] })] }),
+              ]
+            }),
+            new Paragraph({
+              text: "貳、 弱點詳細清冊與修復處置對策",
+              heading: HeadingLevel.HEADING_1,
+              spacing: { before: 400, after: 200 }
+            }),
+            ...currentParsedData.vulns.map((v, i) => [
+              new Paragraph({
+                text: `${i + 1}. [${v.severity}] ${v.titleZh || v.title}`,
+                heading: HeadingLevel.HEADING_2,
+                spacing: { before: 150 }
+              }),
+              new Paragraph({
+                text: `CVE: ${v.cves.join(', ') || '無'} | 受影響標的: ${v.affectedHosts.join(', ')}`,
+                spacing: { after: 50 }
+              }),
+              new Paragraph({
+                text: `【處置建議】：${v.solutionZh || v.solution || '請依軟體原廠公告修補指南進行升級。'}`,
+                spacing: { after: 150 }
+              })
+            ]).flat()
+          ]
+        }]
+      });
+
+      const blob = await Packer.toBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `VulnWeaver_弱點健診報告_${new Date().toISOString().slice(0, 10)}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function exportDiffWordReport(base, rescan) {
+      const { Document, Paragraph, HeadingLevel, Packer } = docx;
+
+      const baseMap = new Map(base.vulns.map(v => [v.id, v]));
+      const rescanMap = new Map(rescan.vulns.map(v => [v.id, v]));
+
+      let fixed = 0, open = 0, newly = 0;
+      const items = [];
+
+      baseMap.forEach((v, id) => {
+        if (rescanMap.has(id)) {
+          open++;
+          items.push({ title: v.titleZh || v.title, status: '未修復 (Open)' });
+        } else {
+          fixed++;
+          items.push({ title: v.titleZh || v.title, status: '已修復 (Fixed)' });
+        }
+      });
+      rescanMap.forEach((v, id) => {
+        if (!baseMap.has(id)) {
+          newly++;
+          items.push({ title: v.titleZh || v.title, status: '新發現 (New)' });
+        }
+      });
+
+      const doc = new Document({
+        sections: [{
+          children: [
+            new Paragraph({ text: "弱點改善複測對比報告書", heading: HeadingLevel.TITLE }),
+            new Paragraph({ text: `已修復: ${fixed} 項 | 未修復: ${open} 項 | 新增: ${newly} 項`, spacing: { before: 100, after: 200 } }),
+            ...items.map(it => new Paragraph({ text: `• [${it.status}] ${it.title}` }))
+          ]
+        }]
+      });
+
+      const blob = await Packer.toBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `VulnWeaver_複測比對報告_${new Date().toISOString().slice(0, 10)}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>

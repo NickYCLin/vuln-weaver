@@ -11,6 +11,10 @@
   <img src="https://img.shields.io/badge/Status-Active%20Development-brightgreen?style=flat-square" alt="Status">
 </p>
 
+<p align="center">
+  <a href="https://nickyclin.github.io/vuln-weaver/"><strong>🌐 立即使用 Web Lite 線上版 (免安裝、純瀏覽器本地解析)</strong></a>
+</p>
+
 ---
 
 ## 📖 專案緣起 (Background)
