@@ -9,6 +9,7 @@
   <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License MIT">
   <img src="https://img.shields.io/badge/Format-Word%20(.docx)%20%7C%20Excel%20(.xlsx)%20%7C%20JSON-orange?style=flat-square" alt="Format">
   <img src="https://img.shields.io/badge/Status-Active%20Development-brightgreen?style=flat-square" alt="Status">
+  <a href="https://github.com/NickYCLin/vuln-weaver/actions/workflows/ci.yml"><img src="https://github.com/NickYCLin/vuln-weaver/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
 <p align="center">
@@ -116,6 +117,7 @@ vuln-weaver/
 │       └── default_diff_tw.docx  # 複測比對報告範本
 ├── scripts/
 │   └── build_default_template.py  # 重建內建範本
+├── .github/workflows/ci.yml  # GitHub Actions：測試、安裝與指令冒煙測試
 ├── tests/                    # 單元測試目錄
 │   ├── fixtures/             # Nessus / Nmap / ZAP / Burp 測試用樣本檔
 │   └── test_*.py
@@ -150,6 +152,10 @@ source venv/bin/activate
 
 # 安裝相依套件
 pip install -r requirements.txt
+
+# 或直接安裝成套件，會多一個 vuln-weaver 指令，之後可用 vuln-weaver 取代 python -m vuln_weaver.cli
+pip install .
+vuln-weaver --version
 ```
 
 ### 2. 命令列指令 (CLI Usage)
@@ -241,7 +247,7 @@ python -m vuln_weaver.cli diff baseline.nessus rescan.nessus -o diff.docx -t my_
 - [x] **Milestone 10**: 支援 Burp Suite 匯出報告（CLI 與 Web Lite）。
 - [x] **Milestone 11**: 多份掃描結果合併成一份報告，JSON 可回讀做複測比對。
 - [x] **Milestone 12**: Excel (.xlsx) 匯出弱點清冊與複測列管表。
-- [ ] **Milestone 13**: GitHub Actions CI 與 pip 安裝後的 `vuln-weaver` 指令驗證。
+- [x] **Milestone 13**: GitHub Actions CI（Python 3.10–3.12 測試、pip 安裝與指令冒煙測試）。
 
 ---
 
