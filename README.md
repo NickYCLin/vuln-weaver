@@ -30,8 +30,9 @@
 
 ## 🌟 核心特色 (Key Features)
 
-- **⚡ 多格式統一解析 (Multi-Scanner Normalizer)**
-  - 支援 **Tenable Nessus (`.nessus` XML)**、**Nmap (`.xml`)**、**OWASP ZAP (`.json`)** 等主流掃描結果，正規化為統一資料模型。
+- **⚡ 掃描結果解析**
+  - CLI 支援 **Tenable Nessus (`.nessus`)** 與 **Nmap XML (`-oX` 輸出的 `.xml`)**，轉成統一資料模型；OWASP ZAP 尚未支援。
+  - Nmap 的開放通訊埠會列入主機清冊；只有 Telnet、過期 TLS 協定或明確回報 `VULNERABLE` 的 NSE 腳本會產生弱點項目。開放 FTP 埠本身不代表已檢出明文或匿名登入。
 - **🇹🇼 繁體中文在地化知識庫 (TW Localized Knowledge Base)**
   - 內建常見弱點（如 SSL/TLS 弱演算法、預設帳密、SQLi/XSS）的繁體中文說明與符合公部門語境的修補指引。
 - **🔄 殺手級複測比對 (Remediation Diff Engine)**
@@ -39,10 +40,10 @@
     - ✅ **Fixed (已修復)**：初掃存在、複掃已消失。
     - ❌ **Open (未修復)**：初掃存在且複掃仍未排除。
     - ⚠️ **New (新發現)**：初掃未檢出、複掃新出現的風險。
-- **📝 Word (.docx) 範本動態組裝 (Jinja2 Template Engine)**
-  - 基於 `docxtpl`，可隨時替換客製化標案範本、封面、公司 Logo、審核簽章欄，告別手動排版惡夢。
+- **📝 Word (.docx) 報告**
+  - 目前由 `python-docx` 產生標準報告；客製化範本與審核簽章功能尚未實作。
 - **📊 視覺化統計圖表**
-  - 自動統計「極高、高、中、低、資訊」弱點分級，並生成圓餅圖與長條圖嵌入報告。
+  - 自動統計「極高、高、中、低、資訊」弱點分級，並將比例圖嵌入報告。
 
 ---
 
@@ -52,7 +53,7 @@
 flowchart LR
     A["Nessus (.nessus)"] --> D["Parsers 模組"]
     B["Nmap (.xml)"] --> D
-    C["OWASP ZAP (.json)"] --> D
+    C["未來支援其他掃描器"] -.-> D
     
     D --> E["統一資料模型 (ScanReport)"]
     
@@ -61,7 +62,6 @@ flowchart LR
     F -->|"否 (單次報告)"| H["Reporter 引擎"]
     
     G --> H
-    I["Word 範本 (.docx)"] --> H
     J["繁中知識庫 (KB)"] --> H
     
     H --> K["📄 最終交付報告 (.docx)"]
@@ -130,6 +130,9 @@ pip install -r requirements.txt
 ```bash
 # 解析 Nessus 掃描檔並產生繁體中文 Word 報告
 python -m vuln_weaver.cli parse sample.nessus -f docx -o report.docx
+
+# 解析 Nmap -oX 輸出的 XML，將主機與檢出項目匯出為 JSON
+python -m vuln_weaver.cli parse sample.xml -f json -o report.json
 ```
 
 #### 初掃 vs 複掃比對產出：
