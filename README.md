@@ -33,6 +33,7 @@
 - **⚡ 掃描結果解析**
   - CLI 支援 **Tenable Nessus (`.nessus`)**、**Nmap XML (`-oX` 輸出的 `.xml`)** 與 **OWASP ZAP 傳統報告（`.xml` / `.json`）**，轉成統一資料模型。
   - `.xml` 會依根節點自動分辨是 Nmap 還是 ZAP，不需另外指定掃描器。
+  - Web Lite 線上版支援同樣三種格式，解析與比對規則和 CLI 一致，全程在瀏覽器內完成。
   - Nmap 的開放通訊埠會列入主機清冊；只有 Telnet、過期 TLS 協定或明確回報 `VULNERABLE` 的 NSE 腳本會產生弱點項目。開放 FTP 埠本身不代表已檢出明文或匿名登入。
   - ZAP 報告以站台（主機 + 通訊埠）當作受影響對象，同一告警跨多個站台會合併成一筆並列出各站台；風險等級對應為 High / Medium / Low / Info，ZAP 沒有 Critical 等級。告警的 URL 清單保留在原始輸出欄位中。
 - **🇹🇼 繁體中文在地化知識庫 (TW Localized Knowledge Base)**
@@ -99,8 +100,9 @@ vuln-weaver/
 ├── tests/                    # 單元測試目錄
 │   ├── fixtures/             # Nessus / Nmap / ZAP 測試用樣本檔
 │   └── test_*.py
-├── docs/
-│   └── index.html            # GitHub Pages Web Lite 線上版（目前僅支援 .nessus）
+├── docs/                     # GitHub Pages Web Lite 線上版
+│   ├── index.html            # 頁面與匯出邏輯
+│   └── vulnweaver.js         # 瀏覽器端的解析、知識庫與比對核心
 ├── .gitignore
 ├── pyproject.toml            # 現代化打包配置
 ├── requirements.txt          # Python 相依套件清單
@@ -164,8 +166,8 @@ python -m vuln_weaver.cli diff baseline.nessus rescan.nessus -o diff_report.docx
 - [x] **Milestone 4**: 建立繁體中文弱點描述知識庫與修復字典（持續補充中）。
 - [x] **Milestone 5**: 初掃 vs 複測比對演算法與複驗對照表輸出。
 - [x] **Milestone 6**: 支援 Nmap XML 與 OWASP ZAP 報告；Burp Suite 尚未支援。
-- [x] **Milestone 7**: GitHub Pages Web Lite 線上版（目前僅支援 `.nessus`）。
-- [ ] **Milestone 8**: Web Lite 加入 Nmap / ZAP 解析，與 CLI 支援範圍對齊。
+- [x] **Milestone 7**: GitHub Pages Web Lite 線上版。
+- [x] **Milestone 8**: Web Lite 加入 Nmap / ZAP 解析，比對規則與 CLI 對齊。
 - [ ] **Milestone 9**: 支援 `docxtpl` 自訂 Word 範本與審核簽章欄位。
 - [ ] **Milestone 10**: 支援 Burp Suite 匯出報告。
 

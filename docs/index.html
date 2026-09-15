@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VulnWeaver Web Lite — 弱點掃描報告整合與複測比對</title>
-  <meta name="description" content="VulnWeaver 是一款專為資安健診與標案設計的弱點報告自動化工具。100% 瀏覽器本地運算，不需上傳伺服器即可將 Nessus 掃描檔一鍵轉換為標準 Word 報告。">
+  <meta name="description" content="VulnWeaver 是一款專為資安健診與標案設計的弱點報告自動化工具。100% 瀏覽器本地運算，不需上傳伺服器即可將 Nessus、Nmap 與 OWASP ZAP 掃描檔一鍵轉換為標準 Word 報告。">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🕸️</text></svg>">
   
   <!-- Tailwind CSS CDN -->
@@ -81,7 +81,7 @@
         弱點掃描報表整合與複測比對引擎
       </h1>
       <p class="text-slate-400 text-sm sm:text-base leading-relaxed">
-        將 Nessus 掃描結果自動去重聚合、比對繁體中文知識庫，並一鍵匯出符合台灣公部門與 ISMS 規範的專業 Word 交付報告書。
+        將 Nessus、Nmap 與 OWASP ZAP 掃描結果自動去重聚合、比對繁體中文知識庫，並一鍵匯出符合台灣公部門與 ISMS 規範的專業 Word 交付報告書。
       </p>
 
       <!-- Mode Tabs -->
@@ -98,16 +98,17 @@
     <!-- Drop Zone Section (Single Mode) -->
     <div id="section-single" class="max-w-2xl mx-auto">
       <div id="drop-zone" class="border-2 border-dashed border-slate-700 hover:border-sky-500 bg-slate-900/60 hover:bg-slate-900 rounded-2xl p-8 text-center cursor-pointer transition">
-        <input type="file" id="file-input" accept=".nessus" class="hidden">
+        <input type="file" id="file-input" accept=".nessus,.xml,.json" class="hidden">
         <div class="w-16 h-16 bg-sky-950 text-sky-400 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-sky-800/50">
           <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
         </div>
-        <h3 class="text-base font-semibold text-white mb-1">拖曳或點擊上傳 .nessus 掃描檔案</h3>
-        <p class="text-xs text-slate-400 mb-4">支援 Tenable Nessus v2 XML 格式；完全於瀏覽器記憶體內解析，檔案絕不離線。</p>
+        <h3 class="text-base font-semibold text-white mb-1">拖曳或點擊上傳掃描檔案</h3>
+        <p class="text-xs text-slate-400 mb-4">支援 Tenable Nessus (.nessus)、Nmap XML (-oX 輸出的 .xml) 與 OWASP ZAP (.xml / .json)，.xml 會依內容自動分辨；完全於瀏覽器記憶體內解析，檔案絕不離線。</p>
         <button type="button" onclick="document.getElementById('file-input').click()" class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-sm font-medium transition shadow">
           選擇檔案
         </button>
       </div>
+      <p id="single-error" class="hidden text-sm text-red-400 text-center mt-4"></p>
     </div>
 
     <!-- Drop Zone Section (Diff Mode) -->
@@ -115,19 +116,21 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <!-- Baseline File -->
         <div id="drop-zone-base" class="border-2 border-dashed border-slate-700 hover:border-sky-500 bg-slate-900/60 rounded-2xl p-6 text-center cursor-pointer transition">
-          <input type="file" id="file-base" accept=".nessus" class="hidden">
+          <input type="file" id="file-base" accept=".nessus,.xml,.json" class="hidden">
           <span class="text-xs font-bold text-sky-400 bg-sky-950 border border-sky-800 px-2 py-0.5 rounded">步驟 1</span>
-          <h4 class="text-sm font-semibold text-white mt-2 mb-1">上傳初測掃描 (Baseline .nessus)</h4>
+          <h4 class="text-sm font-semibold text-white mt-2 mb-1">上傳初測掃描 (Baseline)</h4>
           <p id="label-base" class="text-xs text-slate-400">點擊或拖入第一次檢測檔案</p>
         </div>
         <!-- Rescan File -->
         <div id="drop-zone-rescan" class="border-2 border-dashed border-slate-700 hover:border-emerald-500 bg-slate-900/60 rounded-2xl p-6 text-center cursor-pointer transition">
-          <input type="file" id="file-rescan" accept=".nessus" class="hidden">
+          <input type="file" id="file-rescan" accept=".nessus,.xml,.json" class="hidden">
           <span class="text-xs font-bold text-emerald-400 bg-emerald-950 border border-emerald-800 px-2 py-0.5 rounded">步驟 2</span>
-          <h4 class="text-sm font-semibold text-white mt-2 mb-1">上傳改善複測 (Rescan .nessus)</h4>
+          <h4 class="text-sm font-semibold text-white mt-2 mb-1">上傳改善複測 (Rescan)</h4>
           <p id="label-rescan" class="text-xs text-slate-400">點擊或拖入改善後複掃檔案</p>
         </div>
       </div>
+      <p class="text-xs text-slate-500 text-center mt-4">兩份檔案須來自同一掃描器並涵蓋相同主機；比對按「弱點 × 主機／服務」判定已修復、未修復或新發現。</p>
+      <p id="diff-error" class="hidden text-sm text-red-400 text-center mt-3"></p>
       <div class="text-center mt-6">
         <button id="btn-run-diff" onclick="executeDiffComparison()" disabled class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 text-white font-medium rounded-xl text-sm transition shadow-lg">
           開始進行差異比對
@@ -143,7 +146,7 @@
         <div>
           <span class="text-xs text-slate-400 block mb-1">目前載入專案標的</span>
           <h2 id="res-scan-name" class="text-xl font-bold text-white">專案報告</h2>
-          <span id="res-host-count" class="text-xs text-slate-400 mt-1 inline-block">共檢測 0 台主機</span>
+          <span id="res-scanner" class="text-xs text-sky-400 border border-sky-800 bg-sky-950/60 px-2 py-0.5 rounded mr-2"></span><span id="res-host-count" class="text-xs text-slate-400 mt-1 inline-block">共檢測 0 台主機</span>
         </div>
 
         <!-- Export Buttons -->
@@ -203,7 +206,7 @@
                 <th class="px-6 py-3 w-28 text-center">等級</th>
                 <th class="px-6 py-3">弱點項目名稱 (繁體中文 / 英文原名)</th>
                 <th class="px-6 py-3 w-36">CVE / 編號</th>
-                <th class="px-6 py-3 w-32 text-center">受影響主機</th>
+                <th class="px-6 py-3 w-32 text-center">受影響主機／服務</th>
               </tr>
             </thead>
             <tbody id="vuln-table-body" class="divide-y divide-slate-800/60">
@@ -223,22 +226,8 @@
   </footer>
 
   <!-- Application Logic -->
+  <script src="vulnweaver.js"></script>
   <script>
-    // Traditional Chinese Knowledge Base Dictionary
-    const TW_KB = [
-      { pattern: /SSL Version 2 and 3 Protocol Detection|SSLv2|SSLv3/i, titleZh: '伺服器支援不安全的 SSLv2 / SSLv3 通訊協定', solutionZh: '停用所有 SSLv2 及 SSLv3 通訊協定，伺服器僅保留 TLS 1.2 及 TLS 1.3 協定支援。' },
-      { pattern: /TLS Version 1\.0 Protocol Detection|TLSv1\.0/i, titleZh: '伺服器支援過期之 TLS 1.0 通訊協定', solutionZh: '於伺服器或負載平衡器停用 TLS 1.0，建議僅啟用 TLS 1.2 及 TLS 1.3。' },
-      { pattern: /TLS Version 1\.1 Protocol Detection|TLSv1\.1/i, titleZh: '伺服器支援過期之 TLS 1.1 通訊協定', solutionZh: '於伺服器組態中禁用 TLS 1.1，將傳輸加密門檻提升至 TLS 1.2/1.3。' },
-      { pattern: /Sweet32|Birthday attacks on 64-bit block ciphers|DES|3DES/i, titleZh: 'SSL/TLS 支援 64 位元區塊加密演算法 (Sweet32 弱點)', solutionZh: '移除 3DES/DES 加密套件，改用 AES-GCM 或 ChaCha20-Poly1305。' },
-      { pattern: /RC4/i, titleZh: 'SSL/TLS 支援已被破解之 RC4 串流加密演算法', solutionZh: '徹底自密碼組設定中移除所有包含 RC4 的加密演算法。' },
-      { pattern: /HTTP Strict Transport Security|HSTS/i, titleZh: '未啟用 HTTP 嚴格傳輸安全標頭 (Missing HSTS Header)', solutionZh: '增加回應標頭：Strict-Transport-Security: max-age=31536000; includeSubDomains。' },
-      { pattern: /X-Content-Type-Options|MIME-sniffing/i, titleZh: '缺少 X-Content-Type-Options 安全標頭', solutionZh: '增加全域 HTTP 標頭：X-Content-Type-Options: nosniff。' },
-      { pattern: /X-Frame-Options|Clickjacking/i, titleZh: '缺少 X-Frame-Options 安全標頭 (點擊劫持風險)', solutionZh: '設定 HTTP 回應標頭 X-Frame-Options: SAMEORIGIN 或 DENY。' },
-      { pattern: /Web Server Information Disclosure|Server Header/i, titleZh: '網頁伺服器回應標頭洩漏詳細版本資訊', solutionZh: '設定 server_tokens off (Nginx) 或 ServerTokens Prod (Apache) 隱藏版本資訊。' },
-      { pattern: /SSH Weak MAC Algorithms|SSH Weak KEX/i, titleZh: 'SSH 服務支援不安全的金鑰交換或 MAC 雜湊演算法', solutionZh: '編輯 sshd_config 移除 SHA1、MD5 等舊版演算法，保留強健密碼學演算法。' },
-      { pattern: /Self-Signed Certificate|Untrusted Root/i, titleZh: 'SSL/TLS 憑證使用自簽憑證或未獲信任之發證單位', solutionZh: '向合格之憑證機構 (CA) 申請正式數位憑證並定期排程巡檢效期。' }
-    ];
-
     let currentParsedData = null;
     let severityChart = null;
     let baselineData = null;
@@ -296,134 +285,67 @@
       });
     }
 
-    function handleDiffFile(file, isBaseline) {
+    function showError(elemId, message) {
+      const el = document.getElementById(elemId);
+      el.textContent = message;
+      el.classList.remove('hidden');
+    }
+
+    function clearError(elemId) {
+      document.getElementById(elemId).classList.add('hidden');
+    }
+
+    function readAndParse(file, onParsed, errorElemId) {
+      clearError(errorElemId);
       const reader = new FileReader();
       reader.onload = (e) => {
-        const parsed = parseNessusXML(e.target.result);
-        if (isBaseline) {
-          baselineData = parsed;
-          document.getElementById('label-base').innerText = `已載入: ${file.name} (${parsed.vulns.length} 項弱點)`;
-          document.getElementById('label-base').classList.add('text-sky-400');
-        } else {
-          rescanData = parsed;
-          document.getElementById('label-rescan').innerText = `已載入: ${file.name} (${parsed.vulns.length} 項弱點)`;
-          document.getElementById('label-rescan').classList.add('text-emerald-400');
-        }
-        if (baselineData && rescanData) {
-          document.getElementById('btn-run-diff').disabled = false;
+        try {
+          onParsed(VulnWeaver.parseScanFile(file.name, e.target.result));
+        } catch (err) {
+          showError(errorElemId, `無法解析 ${file.name}：${err.message}`);
         }
       };
+      reader.onerror = () => showError(errorElemId, `讀取 ${file.name} 失敗`);
       reader.readAsText(file);
+    }
+
+    const SCANNER_LABELS = { nessus: 'Tenable Nessus', nmap: 'Nmap', zap: 'OWASP ZAP' };
+
+    function handleDiffFile(file, isBaseline) {
+      readAndParse(file, (parsed) => {
+        const labelId = isBaseline ? 'label-base' : 'label-rescan';
+        const label = document.getElementById(labelId);
+        label.innerText = `已載入: ${file.name}（${SCANNER_LABELS[parsed.scanner]}，${parsed.hosts.length} 台主機、${parsed.vulns.length} 項弱點）`;
+        label.classList.add(isBaseline ? 'text-sky-400' : 'text-emerald-400');
+        if (isBaseline) baselineData = parsed; else rescanData = parsed;
+        document.getElementById('btn-run-diff').disabled = !(baselineData && rescanData);
+      }, 'diff-error');
     }
 
     function executeDiffComparison() {
       if (!baselineData || !rescanData) return;
-      alert(`初測項次: ${baselineData.vulns.length}, 複測項次: ${rescanData.vulns.length}\n正在為您匯出複測差異比對 Word 報告...`);
-      exportDiffWordReport(baselineData, rescanData);
+      clearError('diff-error');
+      let diff;
+      try {
+        diff = VulnWeaver.compareReports(baselineData, rescanData);
+      } catch (err) {
+        showError('diff-error', err.message);
+        return;
+      }
+      exportDiffWordReport(baselineData, rescanData, diff);
     }
 
     function handleFile(file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const xmlStr = e.target.result;
-        currentParsedData = parseNessusXML(xmlStr);
+      readAndParse(file, (parsed) => {
+        currentParsedData = parsed;
         renderResults(currentParsedData);
-      };
-      reader.readAsText(file);
-    }
-
-    // Client-side Nessus XML Parser
-    function parseNessusXML(xmlContent) {
-      const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(xmlContent, 'text/xml');
-      const reportElem = xmlDoc.querySelector('Report');
-      const scanName = reportElem ? (reportElem.getAttribute('name') || '弱點健診專案') : '弱點健診專案';
-
-      const hosts = [];
-      const vulnMap = new Map();
-
-      const hostNodes = xmlDoc.querySelectorAll('ReportHost');
-      hostNodes.forEach((h) => {
-        const hostIpTag = h.querySelector('tag[name="host-ip"]');
-        const hostIp = hostIpTag ? hostIpTag.textContent.trim() : (h.getAttribute('name') || 'Unknown');
-        const fqdnTag = h.querySelector('tag[name="host-fqdn"]');
-        const fqdn = fqdnTag ? fqdnTag.textContent.trim() : '-';
-        const osTag = h.querySelector('tag[name="operating-system"]');
-        const os = osTag ? osTag.textContent.trim() : '未識別';
-
-        const openPorts = new Set();
-
-        h.querySelectorAll('ReportItem').forEach((item) => {
-          const pluginID = item.getAttribute('pluginID');
-          const pluginName = item.getAttribute('pluginName') || '';
-          const port = parseInt(item.getAttribute('port') || '0', 10);
-          const protocol = item.getAttribute('protocol') || 'tcp';
-          const sevLevel = parseInt(item.getAttribute('severity') || '0', 10);
-
-          if (port > 0) openPorts.add(port);
-
-          const cves = Array.from(item.querySelectorAll('cve')).map(c => c.textContent.trim());
-          const desc = (item.querySelector('description')?.textContent || '').trim();
-          const solution = (item.querySelector('solution')?.textContent || '').trim();
-
-          const targetStr = port > 0 ? `${hostIp}:${port}/${protocol}` : hostIp;
-
-          if (vulnMap.has(pluginID)) {
-            const existing = vulnMap.get(pluginID);
-            if (!existing.affectedHosts.includes(targetStr)) {
-              existing.affectedHosts.push(targetStr);
-            }
-          } else {
-            // Match with TW KB
-            let titleZh = null;
-            let solZh = null;
-            for (const rule of TW_KB) {
-              if (rule.pattern.test(`${pluginName} ${desc}`)) {
-                titleZh = rule.titleZh;
-                solZh = rule.solutionZh;
-                break;
-              }
-            }
-
-            vulnMap.set(pluginID, {
-              id: pluginID,
-              title: pluginName,
-              titleZh: titleZh,
-              severity: mapSeverity(sevLevel),
-              severityRank: sevLevel,
-              cves: cves,
-              affectedHosts: [targetStr],
-              description: desc,
-              solution: solution,
-              solutionZh: solZh
-            });
-          }
-        });
-
-        hosts.push({ ip: hostIp, fqdn, os, openPorts: Array.from(openPorts).sort((a,b)=>a-b) });
-      });
-
-      const vulns = Array.from(vulnMap.values()).sort((a, b) => b.severityRank - a.severityRank);
-
-      const stats = { Critical: 0, High: 0, Medium: 0, Low: 0, Info: 0 };
-      vulns.forEach(v => { stats[v.severity]++; });
-
-      return { scanName, hosts, vulns, stats };
-    }
-
-    function mapSeverity(level) {
-      switch(level) {
-        case 4: return 'Critical';
-        case 3: return 'High';
-        case 2: return 'Medium';
-        case 1: return 'Low';
-        default: return 'Info';
-      }
+      }, 'single-error');
     }
 
     function renderResults(data) {
       document.getElementById('result-container').classList.remove('hidden');
       document.getElementById('res-scan-name').innerText = data.scanName;
+      document.getElementById('res-scanner').innerText = SCANNER_LABELS[data.scanner] || data.scanner;
       document.getElementById('res-host-count').innerText = `受檢測目標主機：${data.hosts.length} 台`;
       document.getElementById('res-vuln-count').innerText = `共彙整 ${data.vulns.length} 項獨立弱點`;
 
@@ -459,7 +381,7 @@
           </td>
           <td class="px-6 py-4 font-medium text-white">${displayTitle}</td>
           <td class="px-6 py-4 font-mono text-xs text-sky-400">${cveStr}</td>
-          <td class="px-6 py-4 text-center text-xs text-slate-300">${v.affectedHosts.length} 台</td>
+          <td class="px-6 py-4 text-center text-xs text-slate-300" title="${v.affectedHosts.join('\n')}">${v.affectedHosts.length} 個</td>
         `;
         tbody.appendChild(tr);
       });
@@ -509,6 +431,11 @@
             }),
             new Paragraph({
               text: `專案標的：${currentParsedData.scanName}`,
+              alignment: AlignmentType.CENTER,
+              spacing: { after: 50 }
+            }),
+            new Paragraph({
+              text: `掃描工具：${SCANNER_LABELS[currentParsedData.scanner] || currentParsedData.scanner}　受檢主機：${currentParsedData.hosts.length} 台`,
               alignment: AlignmentType.CENTER,
               spacing: { after: 300 }
             }),
@@ -567,36 +494,22 @@
       URL.revokeObjectURL(url);
     }
 
-    async function exportDiffWordReport(base, rescan) {
+    async function exportDiffWordReport(base, rescan, diff) {
       const { Document, Paragraph, HeadingLevel, Packer } = docx;
-
-      const baseMap = new Map(base.vulns.map(v => [v.id, v]));
-      const rescanMap = new Map(rescan.vulns.map(v => [v.id, v]));
-
-      let fixed = 0, open = 0, newly = 0;
-      const items = [];
-
-      baseMap.forEach((v, id) => {
-        if (rescanMap.has(id)) {
-          open++;
-          items.push({ title: v.titleZh || v.title, status: '未修復 (Open)' });
-        } else {
-          fixed++;
-          items.push({ title: v.titleZh || v.title, status: '已修復 (Fixed)' });
-        }
-      });
-      rescanMap.forEach((v, id) => {
-        if (!baseMap.has(id)) {
-          newly++;
-          items.push({ title: v.titleZh || v.title, status: '新發現 (New)' });
-        }
-      });
+      const STATUS_ZH = { Fixed: '已修復 (Fixed)', Open: '未修復 (Open)', New: '新發現 (New)' };
+      const SEV_ZH = { Critical: '極高', High: '高', Medium: '中', Low: '低', Info: '資訊' };
+      const { fixed, open, newly } = diff;
+      const items = diff.items.map((it) => ({
+        status: STATUS_ZH[it.status],
+        title: `[${SEV_ZH[it.severity] || it.severity}] ${it.title}｜主機／服務：${it.affectedHosts.join(', ')}`,
+      }));
 
       const doc = new Document({
         sections: [{
           children: [
             new Paragraph({ text: "弱點改善複測對比報告書", heading: HeadingLevel.TITLE }),
-            new Paragraph({ text: `已修復: ${fixed} 項 | 未修復: ${open} 項 | 新增: ${newly} 項`, spacing: { before: 100, after: 200 } }),
+            new Paragraph({ text: `初掃：${base.scanName}｜複掃：${rescan.scanName}｜掃描工具：${SCANNER_LABELS[base.scanner] || base.scanner}`, spacing: { before: 100 } }),
+            new Paragraph({ text: `已修復: ${fixed} 項 | 未修復: ${open} 項 | 新增: ${newly} 項（按弱點 × 主機／服務計算）`, spacing: { before: 100, after: 200 } }),
             ...items.map(it => new Paragraph({ text: `• [${it.status}] ${it.title}` }))
           ]
         }]
